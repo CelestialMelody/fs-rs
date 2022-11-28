@@ -1,7 +1,7 @@
 TARGET_NAME := easy-fs
 POJECT_NAME := fs-rs
 MODE := release
-TARGET_DIR := $(HOME)/lab/4lab/${POJECT_NAME}
+TARGET_DIR := $(PWD)
 DEFAULT_TARGET := $(TARGET_DIR)/target/$(MODE)/$(TARGET_NAME)
 
 build:
