@@ -11,6 +11,7 @@ use super::{
     SuperBlock, BLOCK_SIZE,
 };
 
+/// Blocks: Super Block(0) -> Inode Bit Map Blocks -> Inode Blocks -> Data Bit Map Blocks -> Data Blocks
 pub struct EasyFileSystem {
     /// 保留块设备的一个指针 block_device，
     /// 在进行后续操作的时候，该指针会被拷贝并传递给下层的数据结构，
@@ -39,16 +40,17 @@ impl EasyFileSystem {
 
         let inode_bitmap = Bitmap::new(
             // Q: 为什么 inode 位图的起始块号是 1 而不是 0 呢
+            // 0 是超级块
             1,
             inode_bitmap_blocks as usize,
         );
 
         // 根据 inode 位图的大小计算 inode 区域至少需要多少个块，
-        // 才能够使 inode 位图中的每个bit都能够有一个实际的 inode 可以对应，
-        // 这样就确定了 inode 位图区域和 inode 区域的大小
+        // 使 inode 位图中的每个bit都能够有一个实际的 inode 可以对应，
+        // 确定 inode 位图区域和 inode 区域的大小
 
-        // inode 数量
-        // 根据 inode_bitmap_blocks 计算出 inode 数量
+        // 计算 inode 数量
+        // 根据 inode_bitmap_blocks (占用的磁盘块数) 计算出 inode 数量
         let inode_num = inode_bitmap.maximum();
 
         // inode 区域大小
@@ -56,56 +58,60 @@ impl EasyFileSystem {
             // 向上取整
             ((inode_num * std::mem::size_of::<DiskInode>() + BLOCK_SIZE - 1) / BLOCK_SIZE) as u32;
 
-        // 索引节点总的块数 等于 索引节点位图占用的块数 加上 索引节点区域占用的块数
+        // 索引节点使用总的块数 等于 索引节点位图占用的块数 加上 索引节点区域占用的块数
         let inode_total_blocks = inode_area_blocks + inode_bitmap_blocks;
 
         // 剩下的块都分配给 数据块位图区域 和 数据块区域
 
         // 总的数据块数 等于 磁盘总块数 减去 索引节点总的块数
-        // Q: 为什么再减去 1 呢？
+        // Q: 为什么再减去 1 呢？(减去的 1 是超级块, block_id = 0)
         let data_total_blocks = total_blocks - 1 - inode_total_blocks;
-
-        // 我们希望数据块位图中的每个 bit 仍然能够对应到一个数据块，
-        // 但是数据块位图又不能过小，不然会造成某些数据块永远不会被使用。
-        // 因此数据块位图区域最合理的大小是剩余的块数除以 4097 再上取整，
-        // 因为位图中的每个块能够对应 4096 个数据块。
-        // 其余的块就都作为数据块使用。
 
         // 数据块位图区域大小
         //
-        // 数据块位图区域最合理的大小是剩余                                  的块数除以 4097 再上取整，
-        // 因为位图中的每个块能够对应 4096 个数据块。
-        //
         // Q: 为什么要除以 4097 呢？ 为什么不是除以 4096 呢？
+        //
+        // 我们希望位图覆盖后面的数据块的前提下数据块尽量多。
+        // 但要求数据块位图中的每个 bit 仍然能够对应到一个数据块，
+        // 数据块位图又不能过小，不然会造成某些数据块永远不会被使用。
+        // 设数据的位图占据 x 个块，则该位图能管理的数据块不超过 4096 * x。
+        // 数据区域总共 data_total_blocks 个块，除了数据位图的块剩下都是数据块，
+        // 也就是位图管理的数据块为 data_total_blocks - x 个块。
+        // 于是有不等式 data_total_blocks - x <= 4096 * x，
+        // 得到 x >= data_total_blocks / 4097。
+        // 数据块尽量多也就要求位图块数尽量少，于是取 x 的最小整数解也就是 data_total_blocks / 4097 上取整，也就是代码中的表达式。
+        // 因此数据块位图区域最合理的大小是剩余的块数除以 4097 再上取整。
+        //
         let data_bitmap_blocks = (data_total_blocks + 4096) / 4097;
 
         // 数据块区域大小
         let data_area_blocks = data_total_blocks - data_bitmap_blocks;
 
+        // 初始化数据块位图
         let data_bitmap = Bitmap::new(
-            // inode_bitmap_blocks + inode_area_blocks = inode_total_blocks; +1 下一个
-            // Q: 为什么之前 inode_bitmap 的起始块号是 1
+            // inode_bitmap_blocks + inode_area_blocks = inode_total_blocks; + 1 is the super block
             (1 + inode_bitmap_blocks + inode_area_blocks) as usize,
             data_bitmap_blocks as usize,
         );
 
+        // 初始化文件系统
         let mut efs = Self {
             block_device: Arc::clone(&block_device),
             inode_bitmap,
             data_bitmap,
-            // Q: 似乎都是从 1 开始计算的
-            // 为什么不是从 0 开始计算的： 0 这个块存放了其他信息？(猜测是超级块)
+            // Q: 为什么不是从 0 开始计算的: 0 这个块存放了其他信息(超级块)
             // 在 inode_area 之前存放了 inode_bitmap，故 inode_area 的起始块号为 inode_bitmap_blocks + 1
             inode_area_start_block: 1 + inode_bitmap_blocks,
             // 在 data_area 之前存放了 inode_bitmap, inode_area, data_bitmap，故 data_area 的起始块号为 inode_bitmap_blocks + inode_area_blocks + 2
             data_area_start_block: 1 + inode_total_blocks + data_bitmap_blocks,
         };
 
-        // 将块设备的前 total_blocks 个块清零，因为 easy-fs 要用到它们，这也是为初始化做准备
+        // 既然是创建文件系统，第一次使用，需要将块设备的前 total_blocks 个块清零
         for i in 0..total_blocks {
             get_block_cache(i as usize, Arc::clone(&block_device))
                 .lock()
                 .modify(0, |data_block: &mut DataBlock| {
+                    // 以块为单位，将块中的所有字节都设置为 0
                     for byte in data_block.iter_mut() {
                         *byte = 0;
                     }
@@ -113,7 +119,7 @@ impl EasyFileSystem {
         }
 
         // 初始化超级块
-        // 将位于块设备编号为 0 块上的超级块进行初始化，只需传入之前计算得到的每个区域的块数就行了
+        // 将位于块设备编号为 0 块上的超级块进行初始化，只需传入之前计算得到的每个区域的块数就行
         get_block_cache(0, Arc::clone(&block_device)).lock().modify(
             0,
             |super_block: &mut SuperBlock| {
@@ -127,15 +133,16 @@ impl EasyFileSystem {
             },
         );
 
-        // 写回
-        // 为根节点 "/" 创建一个 inode
+        // 为根目录 "/" 创建一个 inode
         // 首先需要调用 alloc_inode 在 inode 位图中分配一个 inode ，
         // 由于这是第一次分配，它的编号固定是 0 。
+        assert_eq!(efs.alloc_inode(), 0);
+
         // 接下来需要将分配到的 inode 初始化为 easy-fs 中的唯一一个目录，
         // 故需要调用 get_disk_inode_pos 来根据 inode 编号获取该 inode 所在的块的编号以及块内偏移，
         // 之后就可以将它们传给 get_block_cache 和 modify 了
-        assert_eq!(efs.alloc_inode(), 0);
         let (root_inode_block_id, root_inode_offset) = efs.get_disk_inode_pos(0);
+
         get_block_cache(root_inode_block_id as usize, Arc::clone(&block_device))
             .lock()
             .modify(root_inode_offset, |disk_inode: &mut DiskInode| {
@@ -143,6 +150,7 @@ impl EasyFileSystem {
             });
 
         block_cache_sync_all();
+
         Arc::new(Mutex::new(efs))
     }
 

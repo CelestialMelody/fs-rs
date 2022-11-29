@@ -182,6 +182,44 @@ impl BlockCacheManager {
         }
     }
 
+    /**
+        修改 queue 为Vec
+        pub struct BlockCacheManager {
+            queue: Vec<(usize, Arc<Mutex<BlockCache>>)>,
+        }
+
+        impl BlockCacheManager {
+            pub fn get_block_cache(
+                &mut self,
+                block_id: usize,
+                block_device: Arc<dyn BlockDevice>,
+            ) -> Arc<Mutex<BlockCache>> {
+                if let Some((_, cache)) = self.queue.iter().find(|(id, _)| *id == block_id) {
+                    cache.clone()
+                } else {
+                    // substitute
+                    if self.queue.len() == BLOCK_CACHE_SIZE {
+                        // from front to tail
+                        if let Some((idx, _)) = self
+                            .queue
+                            .iter()
+                            .enumerate()
+                            .find(|(_, (_, cache))| Arc::strong_count(cache) == 1)
+                        {
+                            self.queue.swap_remove(idx);
+                        } else {
+                            panic!("Run out of BlockCache!");
+                        }
+                    }
+                    // load block into mem and push back
+                    let block_cache = Arc::new(Mutex::new(BlockCache::new(block_id, block_device.clone())));
+                    self.queue.push((block_id, Arc::clone(&block_cache)));
+                    block_cache
+                }
+            }
+        }
+    */
+
     /// 尝试从块缓存管理器中获取一个编号为 block_id 的块的块缓存，
     /// 如果找不到，会从磁盘读取到内存中，还有可能会发生缓存替换
     pub fn get_block_cache(
@@ -232,6 +270,7 @@ lazy_static! {
     pub static ref BLOCK_CACHE_MANAGER: Mutex<BlockCacheManager> =
         Mutex::new(BlockCacheManager::new());
 }
+
 /// 尝试从块缓存管理器中获取一个编号为 block_id 的块的块缓存，
 /// 如果找不到，会从磁盘读取到内存中，还有可能会发生缓存替换
 ///

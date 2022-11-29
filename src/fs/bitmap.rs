@@ -17,7 +17,7 @@ type BitmapBlock = [u64; 64]; // size = 64 * 64 = 4096 bits = 512 bytes
 pub struct Bitmap {
     /// 位图所在区域的起始块编号
     start_block_id: usize,
-    /// 区域的长度
+    /// 位图索引使用的磁盘块数
     blocks_counts: usize,
 }
 
@@ -32,11 +32,11 @@ impl Bitmap {
     /// 从块设备分配一个新块
     ///
     /// 遍历区域中的每个块，
-    /// 再在每个块中以bit组（每组 64 bits）为单位进行遍历，
+    /// 再在每个块中以 bit 组（每组 64 bits）为单位进行遍历，
     /// 找到一个尚未被全部分配出去的组，
-    /// 最后在里面分配一个bit。
+    /// 最后在里面分配一个 bit。
     ///
-    /// 它将会返回分配的bit所在的位置，等同于索引节点/数据块的编号。
+    /// 它将会返回分配的 bit 所在的位置，等同于 索引节点/数据块 的编号。
     ///
     /// 如果所有bit均已经被分配出去了，则返回 None 。
     pub fn alloc(&self, block_device: &Arc<dyn BlockDevice>) -> Option<usize> {

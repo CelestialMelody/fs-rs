@@ -65,7 +65,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
     // let src_path = matche.value_of("source").unwrap_or("/");
     let src_path = matche.value_of("source").unwrap();
     let target_path = matche.value_of("target").unwrap();
-    println!("src_path: {}\ntarget_path: {}", src_path, target_path);
+    println!("SRC_PATH: {}\nTARGET_PATH: {}", src_path, target_path);
 
     // 创建虚拟块设备
     // 打开虚拟块设备。这里我们在 Linux 上创建文件 ./target/fs.img 来新建一个虚拟块设备，并将它的容量设置为 0x4000 个块。
@@ -118,16 +118,22 @@ fn easy_fs_pack() -> std::io::Result<()> {
 
 #[test]
 fn efs_test() -> std::io::Result<()> {
+    // 创建虚拟磁盘
     let block_file = Arc::new(BlockFile(Mutex::new({
+        // 创建文件，设置权限
         let f = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
             .open("target/fs.img")?;
+        // 设置文件大小
         f.set_len((BLOCK_NUM * BLOCK_SIZE) as u64).unwrap();
         f
     })));
+
+    // 在虚拟块设备 block_file 上初始化 easy-fs 文件系统
     EasyFileSystem::create(block_file.clone(), 4096, 1);
+
     let efs = EasyFileSystem::open(block_file.clone());
     let root_inode = EasyFileSystem::root_inode(&efs);
     root_inode.create("filea");
