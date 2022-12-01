@@ -177,6 +177,10 @@ impl EasyFileSystem {
     // alloc_data 和 dealloc_data 分配/回收数据块传入/返回的参数都表示数据块在块设备上的编号，而不是在数据块位图中分配的bit编号
 
     /// 分配索引
+    /// 首先需要获取 inode_bitmap 所在的磁盘块，
+    /// 以 bit 组（每组 64 bits）为单位进行遍历，
+    /// 找到一个尚未被全部分配出去的组，
+    /// 最后在里面分配一个 bit。
     pub fn alloc_inode(&mut self) -> u32 {
         self.inode_bitmap.alloc(&self.block_device).unwrap() as u32
     }

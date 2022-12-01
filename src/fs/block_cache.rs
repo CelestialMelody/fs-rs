@@ -74,6 +74,7 @@ impl BlockCache {
         // 确认 T 被整个包含在磁盘块及其缓冲区之内
         assert!(offset + type_size <= BLOCK_SIZE);
         let addr = self.addr_of_offset(offset);
+        // &* 再借用; 将指针转换为引用
         unsafe { &*(addr as *const T) }
     }
 

@@ -10,6 +10,7 @@ use super::{get_block_cache, BlockDevice, BLOCK_BITS};
 /// 磁盘块上位图区域的数据则是要以磁盘数据结构 BitmapBlock 的格式进行操作。
 /// BitmapBlock 是一个磁盘数据结构，它将位图区域中的一个磁盘块解释为长度为 64 的一个 u64 数组，
 /// 每个 u64 打包了一组 64 bits，于是整个数组包含 64 * 64 = 4096 bits，且可以以组为单位进行操作
+/// 刚好占用一个磁盘块的大小。
 type BitmapBlock = [u64; 64]; // size = 64 * 64 = 4096 bits = 512 bytes
 
 /// 注意 Bitmap 自身是驻留在内存中的，
@@ -52,8 +53,10 @@ impl Bitmap {
             // 通过 .lock() 获取块缓存的互斥锁从而可以对块缓存进行访问
             .lock()
             // 使用 BlockCache::modify 接口。
+            //
             // 它传入的偏移量 offset 为 0，这是因为整个块上只有一个 BitmapBlock ，它的大小恰好为 512 字节，(see BlockCache.cache which is a [u8; BLOCK_SZ])
             // 因此我们需要从块的开头开始才能访问到完整的 BitmapBlock 。
+            //
             // 同时，传给它的闭包需要显式声明参数类型为 &mut BitmapBlock ，
             // 不然的话， BlockCache 的泛型方法 modify/get_mut 无法得知应该用哪个类型来解析块上的数据。
             // 在声明之后，编译器才能在这里将两个方法中的泛型 T 实例化为具体类型 BitmapBlock 。
@@ -62,7 +65,9 @@ impl Bitmap {
             // 从缓冲区偏移量为 0 的位置开始将一段连续的数据（数据的长度随具体类型而定）解析为一个 BitmapBlock 并要对该数据结构进行修改。
             // 在闭包内部，我们可以使用这个 BitmapBlock 的可变引用 bitmap_block 对它进行访问。
             // read/get_ref 的用法完全相同，后面将不再赘述。
-            .modify(0, |bitmap_block: &mut BitmapBlock| {
+            .modify(0, |bitmap_block: &mut BitmapBlock| -> Option<usize> {
+                // 返回值赋值给 pos
+
                 // 尝试在 bitmap_block 中找到一个空闲的 bit 并返回其位置。
                 // 如果能够找到的话，bit 组的编号将保存在变量 bits64_pos 中，而分配的 bit 在组内的位置将保存在变量 inner_pos 中。
                 if let Some((bits64_pos, inner_pos)) = bitmap_block
@@ -73,12 +78,16 @@ impl Bitmap {
                     .find(|(_, bits64)| **bits64 != u64::MAX)
                     // 则通过 u64::trailing_ones 找到最低的一个 0 的位置（从第 0 位开始计算）
                     .map(|(bits64_pos, bits64)| (bits64_pos, bits64.trailing_ones() as usize))
+                // if let 让 inner_pos 赋值为 bits64.trailing_ones() 的返回值
                 {
-                    // 将该位置置为 1                    .map(|(bit64_pos, bits64)| (bit64_pos, bits64.trailing_ones() as usize))
+                    // 将该位置置为 1
                     bitmap_block[bits64_pos] |= 1 << inner_pos;
+
                     // 在返回分配的 bit 编号的时候，它的计算方式是:
                     // block_id(块号) * BLOCK_BITS(每块大小: bits) + bits64_pos(行号, 块内组号, 数组index) * 64 + inner_pos(组内编号, 最低位的 0 的位置(已经修改为 1 ))
                     Some(block_id * BLOCK_BITS + bits64_pos * 64 + inner_pos as usize)
+
+                    // 返回值赋值给变量 pos
 
                     // 注意闭包中的 block_id 并不在闭包的参数列表中，因此它是从外部环境（即自增 block_id 的循环）中捕获到的。
                     //

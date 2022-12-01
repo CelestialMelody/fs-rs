@@ -8,6 +8,8 @@ use std::sync::Arc;
 
 use crate::fs::{DirEntry, DIRENT_SIZE};
 
+use ::log::error;
+
 use super::{
     block_cache_sync_all, easy_fs::EasyFileSystem, get_block_cache, BlockDevice, DiskInode,
     DiskInodeType,
@@ -16,7 +18,9 @@ use super::{
 use spin::{Mutex, MutexGuard};
 
 pub struct Inode {
+    /// 位于哪个盘块
     block_id: usize,
+    /// 盘块上的偏移
     block_offset: usize,
     fs: Arc<Mutex<EasyFileSystem>>,
     block_device: Arc<dyn BlockDevice>,
@@ -106,6 +110,10 @@ impl Inode {
         })
     }
 
+    pub fn file_size(&self) -> usize {
+        self.read_disk_inode(|disk_inode| disk_inode.size as usize)
+    }
+
     // 包括 find 在内，所有暴露给文件系统的使用者的文件系统操作（还包括接下来将要介绍的几种），
     // 全程均需持有 EasyFileSystem 的互斥锁
     // （相对而言，文件系统内部的操作，如之前的 Inode::new 或是上面的 find_inode_id ，
@@ -180,7 +188,9 @@ impl Inode {
 
         // Q: 这与上面的 new_inode_block_id, new_inode_block_offset 有什么区别？
         let (block_id, block_offset) = fs.get_disk_inode_pos(new_inode_id);
+
         block_cache_sync_all();
+
         Some(Arc::new(Self::new(
             block_id,
             block_offset,
@@ -241,6 +251,11 @@ impl Inode {
     pub fn write(&self, offset: usize, buf: &[u8]) -> usize {
         let mut fs = self.fs.lock();
         let size = self.modify_disk_inode(|disk_inode| -> usize {
+            if !disk_inode.is_file() {
+                error!("write to a non-file inode");
+                return 0;
+            }
+
             // 如果写入的数据超过了文件的大小，则需要增加文件的大小
             self.increase_size((offset + buf.len()) as u32, disk_inode, &mut fs);
             // 写入数据
