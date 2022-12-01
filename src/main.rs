@@ -4,6 +4,11 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use chrono::{
+    format::{DelayedFormat, StrftimeItems},
+    prelude::*,
+};
+
 use clap::{App, Arg};
 
 use fs::{BlockDevice, EasyFileSystem, BLOCK_SIZE};
@@ -197,7 +202,19 @@ fn easy_fs_pack() -> std::io::Result<()> {
                     let mut all_data: Vec<u8> = vec![0; inode.file_size() as usize];
                     inode.read(0, &mut all_data);
                     // 写入文件 保存到host文件系统中
-                    let mut target_file = File::create(format!("{}{}", target_path, file)).unwrap();
+                    let mut target_file = File::create(format!(
+                        "{}{} {}",
+                        target_path,
+                        format!("{}", {
+                            let fmt = "%Y-%m-%d %H:%M:%S";
+                            let now: DateTime<Local> = Local::now();
+                            let dft: DelayedFormat<StrftimeItems> = now.format(fmt);
+                            dft.to_string()
+                        },)
+                        .as_str(),
+                        file
+                    ))
+                    .unwrap();
                     target_file.write_all(all_data.as_slice()).unwrap();
                 }
             }
@@ -215,7 +232,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
 
                 for file in files {
                     // 从host文件系统中读取文件
-                    println!("set {} to easy-fs", src_path);
+                    println!("set {}{} to easy-fs", src_path, file);
                     let mut host_file = File::open(format!("{}{}", src_path, file)).unwrap();
                     let mut all_data: Vec<u8> = Vec::new();
                     host_file.read_to_end(&mut all_data).unwrap();
@@ -227,6 +244,10 @@ fn easy_fs_pack() -> std::io::Result<()> {
                         inode.write(0, all_data.as_slice());
                     }
                 }
+            }
+
+            "rm" => {
+                root_inode.clear();
             }
 
             "exit" => break,
