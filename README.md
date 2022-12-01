@@ -3,7 +3,7 @@
 based on eazy-fs of rcore
 
 
-<img src="./docs/mixed_index_fs.png" alt="mixed_index_fs.png" width="60%" style="
+<img src="./docs/mixed_index_fs.png" alt="mixed_index_fs.png" width="80%" style="
   display: block;
   margin-left: auto;
   margin-right: auto;
