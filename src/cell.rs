@@ -1,0 +1,35 @@
+//! Uniprocessor interior mutability primitives
+
+use std::cell::{Ref, RefCell, RefMut};
+
+/// Wrap a static data structure inside it so that we are
+/// able to access it without any `unsafe`.
+///
+/// We should only use it in uniprocessor.
+///
+/// In order to get mutable reference of inner data, call
+/// `exclusive_access`.
+pub struct UnSafeCell<T> {
+    /// inner data
+    inner: RefCell<T>,
+}
+
+unsafe impl<T> Sync for UnSafeCell<T> {}
+
+impl<T> UnSafeCell<T> {
+    /// User is responsible to guarantee that inner struct is only used in
+    /// uniprocessor.
+    pub unsafe fn new(value: T) -> Self {
+        Self {
+            inner: RefCell::new(value),
+        }
+    }
+    /// Panic if the data has been borrowed.
+    pub fn borrow_mut(&self) -> RefMut<'_, T> {
+        self.inner.borrow_mut()
+    }
+
+    pub fn borrow(&self) -> Ref<'_, T> {
+        self.inner.borrow()
+    }
+}
