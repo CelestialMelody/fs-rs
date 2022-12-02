@@ -13,7 +13,8 @@
                 "-t",
                 "test/",
                 "-w",
-                "create", // 先创建文件系统，之后再修改为 open
+                // "create", // 先使用 crate 创建文件系统
+                "open"
             ],
             "cwd": "${workspaceRoot}",
         }
