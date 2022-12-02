@@ -133,6 +133,9 @@ fn easy_fs_pack() -> std::io::Result<()> {
 
     let ways = matche.value_of("ways to run").unwrap();
 
+    // let src_path = "src/fs/";
+    // let target_path = "test/";
+
     // 创建虚拟块设备
     // 打开虚拟块设备。这里我们在 Linux 上创建文件 ./target/fs.img 来新建一个虚拟块设备，并将它的容量设置为 0x4000 个块。
     // 在创建的时候需要将它的访问权限设置为可读可写。
@@ -160,11 +163,10 @@ fn easy_fs_pack() -> std::io::Result<()> {
         panic!("Please specify the operation(create or open)!");
     };
 
+    // let efs = EasyFileSystem::create(block_file.clone(), BLOCK_NUM as u32, 1);
+    // let efs = EasyFileSystem::open(block_file.clone());
     // 读取目录
     let root_inode = Arc::new(EasyFileSystem::root_inode(&efs));
-
-    // 创建文件系统时
-    if ways == "create" {}
 
     loop {
         // shell display
