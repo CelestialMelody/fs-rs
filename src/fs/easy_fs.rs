@@ -226,7 +226,8 @@ impl EasyFileSystem {
                         super_block.data_bitmap_blocks as usize,
                     ),
                     inode_area_start_block: 1 + super_block.inode_bitmap_blocks,
-                    data_area_start_block: 1 + inode_total_blocks + super_block.data_area_blocks,
+                    // FIX: BUG for dealloc_data
+                    data_area_start_block: 1 + inode_total_blocks + super_block.data_bitmap_blocks,
                 };
 
                 Arc::new(Mutex::new(efs))
