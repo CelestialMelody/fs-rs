@@ -166,7 +166,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
     // let efs = EasyFileSystem::create(block_file.clone(), BLOCK_NUM as u32, 1);
     // let efs = EasyFileSystem::open(block_file.clone());
     // 读取目录
-    let root_inode = Arc::new(EasyFileSystem::root_inode(&efs));
+    let curr_folder_inode = Arc::new(EasyFileSystem::root_inode(&efs));
 
     loop {
         // shell display
@@ -189,19 +189,107 @@ fn easy_fs_pack() -> std::io::Result<()> {
 
             // 读取目录下的所有文件
             "ls" => {
-                for file in root_inode.ls() {
+                for file in curr_folder_inode.ls() {
                     // 从easy-fs中读取文件
                     println!("{}", file);
                 }
             }
 
+            // read filename offset size
+            "read" => {
+                let file_name = input.next().unwrap_or("");
+                let file_inode = curr_folder_inode.find(file_name);
+                if file_inode.is_none() {
+                    println!("File not found!");
+                    continue;
+                }
+                let file_inode = file_inode.unwrap();
+
+                // 如果 input 只有一个参数，那么就是读取整个文件：offset = 0，size = 文件大小
+                // 如果 input 只有两个参数，那么就是读取文件的一部分：offset = 第一个参数，size = 文件大小 - offset
+                let next1 = input.next().unwrap_or("0");
+                let next2 = input.next();
+                if next2 == None {
+                    // 读取整个文件
+                    let offset = next1.parse::<usize>().unwrap();
+                    let size = file_inode.size() as usize - offset;
+                    let mut buf = vec![0u8; size];
+                    file_inode.read(offset, &mut buf);
+                    unsafe {
+                        println!("{}", String::from_utf8_unchecked(buf));
+                    }
+                } else {
+                    // 读取文件的一部分
+                    let offset = next1.parse::<usize>().unwrap();
+                    let size = next2.unwrap().parse::<usize>().unwrap();
+                    let mut buf = vec![0u8; size];
+                    file_inode.read(offset, &mut buf);
+                    unsafe {
+                        println!("{}", String::from_utf8_unchecked(buf));
+                    }
+                }
+
+                // 因为没法保证文件的内容是可打印的( offset 开始读的地方 以及最后的长度 不保证是合法的utf8字符)
+            }
+
+            "chname" => {
+                let file_name = input.next();
+                if file_name.is_none() {
+                    println!("Please specify the file name!");
+                    continue;
+                }
+                let file_name = file_name.unwrap();
+
+                let new_name = input.next();
+                if new_name.is_none() {
+                    println!("Please specify the new name!");
+                    continue;
+                }
+                let new_name = new_name.unwrap();
+
+                // let file_inode = curr_folder_inode.find(file_name);
+                // if file_inode.is_none() {
+                //     println!("File not found!");
+                //     continue;
+                // }
+                // let file_inode = file_inode.unwrap();
+                // file_inode.chname(new_name);
+
+                curr_folder_inode.chname(file_name, new_name);
+            }
+
+            // write filename offset content
+            "write" => {
+                let file_name = input.next().unwrap_or("");
+                let file_inode = curr_folder_inode.find(file_name);
+                if file_inode.is_none() {
+                    println!("File not found!");
+                    continue;
+                }
+                let file_inode = file_inode.unwrap();
+
+                // 如果 next 不是数字
+                let next = input.next().unwrap();
+                if next.parse::<usize>().is_err() {
+                    // 那么就是写入整个文件：offset = 0，content = 第一个参数
+                    let content = next;
+                    file_inode.write(0, content.as_bytes());
+                } else {
+                    // 如果 next 是数字
+                    // 那么就是写入文件的一部分：offset = 第一个参数，content = 第二个参数
+                    let offset = next.parse::<usize>().unwrap();
+                    let content = input.next().unwrap_or("");
+                    file_inode.write(offset, content.as_bytes());
+                };
+            }
+
             // 从 easy-fs 读取文件保存到 host 文件系统中
             "get" => {
-                for file in root_inode.ls() {
+                for file in curr_folder_inode.ls() {
                     // 从easy-fs中读取文件
                     println!("get {} from easy-fs", file);
-                    let inode = root_inode.find(file.as_str()).unwrap();
-                    let mut all_data: Vec<u8> = vec![0; inode.file_size() as usize];
+                    let inode = curr_folder_inode.find(file.as_str()).unwrap();
+                    let mut all_data: Vec<u8> = vec![0; inode.size() as usize];
                     inode.read(0, &mut all_data);
                     // 写入文件 保存到host文件系统中
                     let mut target_file = File::create(format!(
@@ -239,7 +327,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
                     let mut all_data: Vec<u8> = Vec::new();
                     host_file.read_to_end(&mut all_data).unwrap();
                     // 创建文件
-                    let inode = root_inode.create(file.as_str());
+                    let inode = curr_folder_inode.create(file.as_str());
                     if inode.is_some() {
                         // 写入文件
                         let inode = inode.unwrap();
@@ -248,8 +336,8 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 }
             }
 
-            "rm" => {
-                root_inode.clear();
+            "fmt" => {
+                curr_folder_inode.clear();
             }
 
             "exit" => break,
