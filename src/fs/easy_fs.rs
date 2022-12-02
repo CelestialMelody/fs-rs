@@ -191,7 +191,6 @@ impl EasyFileSystem {
     }
 
     /// 回收数据块
-    #[allow(unused)]
     pub fn dealloc_data(&mut self, block_id: u32) {
         get_block_cache(block_id as usize, Arc::clone(&self.block_device))
             .lock()
@@ -207,7 +206,6 @@ impl EasyFileSystem {
     }
 
     // 通过 open 方法可以从一个已写入了 easy-fs 镜像的块设备上打开 easy-fs
-    #[allow(unused)]
     pub fn open(block_device: Arc<dyn BlockDevice>) -> Arc<Mutex<Self>> {
         // 读超级块: 超级块的索引 id 为 0
         get_block_cache(0, Arc::clone(&block_device))

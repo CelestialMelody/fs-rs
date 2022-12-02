@@ -68,7 +68,6 @@ impl SuperBlock {
     }
 
     /// is_valid 则可以通过魔数判断超级块所在的文件系统是否合法
-    #[allow(unused)]
     pub fn is_valid(&self) -> bool {
         self.magic == EAZY_FS_MAGIC
     }
@@ -141,7 +140,6 @@ impl DiskInode {
         self.type_ == DiskInodeType::Directory
     }
 
-    #[allow(unused)]
     pub fn is_file(&self) -> bool {
         self.type_ == DiskInodeType::File
     }
@@ -574,6 +572,11 @@ impl DirEntry {
     pub fn name(&self) -> &str {
         let len = (0usize..).find(|&i| self.name[i] == 0).unwrap(); // 找到第一个 0
         std::str::from_utf8(&self.name[..len]).unwrap()
+    }
+
+    pub fn chname(&mut self, name: &str) {
+        self.name[..name.len()].copy_from_slice(name.as_bytes());
+        self.name[name.len()] = 0;
     }
 
     pub fn inode_number(&self) -> u32 {

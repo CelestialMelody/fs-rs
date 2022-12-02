@@ -113,7 +113,6 @@ impl Bitmap {
         None
     }
 
-    #[allow(unused)]
     pub fn dealloc(&self, block_device: &Arc<dyn BlockDevice>, bit: usize) {
         let (block_pos, bits64_pos, inner_pos) = decomposition(bit);
         get_block_cache(
