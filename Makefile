@@ -1,7 +1,7 @@
 TARGET_NAME := easy-fs
 POJECT_NAME := fs-rs
 MODE := debug
-# MODE := release # 此时没法调试，release 会丢弃一些调试信息
+# MODE := release # 此时没法调试，release 会丢弃调试信息
 TARGET_DIR := $(PWD)
 DEFAULT_TARGET := $(TARGET_DIR)/target/$(MODE)/$(TARGET_NAME)
 
@@ -26,6 +26,7 @@ clean:
 	cargo clean
 # 如果有 test 文件夹 则删除
 	if [ -d "test" ]; then rm -rf test; fi
-	rm $(TARGET_DIR)/$(TARGET_NAME)
+# 如果有 $(TARGET_NAME) 则删除
+	if [ -f "$(TARGET_NAME)" ]; then rm $(TARGET_NAME); fi
 
 .PHONY: build clean
