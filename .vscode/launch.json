@@ -1,0 +1,21 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(Linux) Launch",
+            "type": "lldb",
+            "request": "launch",
+            // 如果想要调试 Makefile::MODE 改为 debug
+            "program": "${workspaceRoot}/target/debug/easy-fs",
+            "args": [
+                "-s",
+                "src/fs/",
+                "-t",
+                "test/",
+                "-w",
+                "create", // 先创建文件系统，之后再修改为 open
+            ],
+            "cwd": "${workspaceRoot}",
+        }
+    ]
+}
