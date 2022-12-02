@@ -92,7 +92,6 @@ impl Inode {
     }
 
     // find 方法只会被根目录 Inode 调用，文件系统中其他文件的 Inode 不会调用这个方法
-    #[allow(unused)]
     pub fn find(&self, name: &str) -> Option<Arc<Inode>> {
         let fs = self.fs.lock();
         self.read_disk_inode(|disk_inode| {
@@ -110,7 +109,7 @@ impl Inode {
         })
     }
 
-    pub fn file_size(&self) -> usize {
+    pub fn size(&self) -> usize {
         self.read_disk_inode(|disk_inode| disk_inode.size as usize)
     }
 
@@ -221,7 +220,6 @@ impl Inode {
     // 在以某些标志位打开文件（例如带有 CREATE 标志打开一个已经存在的文件）的时候，需要首先将文件清空。
     // 在索引到文件的 Inode 之后，可以调用 clear 方法
     // 将该文件占据的索引块和数据块回收
-    #[allow(unused)]
     pub fn clear(&self) {
         let mut fs = self.fs.lock();
         self.modify_disk_inode(|disk_inode| {
@@ -242,10 +240,31 @@ impl Inode {
     //从根目录索引到一个文件之后，可以对它进行读写。
     // 注意：和 DiskInode 一样，这里的读写作用在字节序列的一段区间上
 
-    #[allow(unused)]
     pub fn read(&self, offset: usize, buf: &mut [u8]) -> usize {
         let _fs = self.fs.lock();
         self.read_disk_inode(|disk_inode| disk_inode.read(offset, buf, &self.block_device))
+    }
+
+    pub fn chname(&self, old_name: &str, new_name: &str) {
+        let _fs = self.fs.lock();
+
+        self.modify_disk_inode(|curr_inode| {
+            // find file by name
+            let file_count = (curr_inode.size as usize) / DIRENT_SIZE;
+            let mut dir_entry = DirEntry::create_empty();
+            for i in 0..file_count {
+                curr_inode.read(
+                    i * DIRENT_SIZE,
+                    dir_entry.as_bytes_mut(),
+                    &self.block_device,
+                );
+                if dir_entry.name() == old_name {
+                    dir_entry.chname(new_name);
+                    curr_inode.write(i * DIRENT_SIZE, dir_entry.as_bytes(), &self.block_device);
+                    break;
+                }
+            }
+        })
     }
 
     pub fn write(&self, offset: usize, buf: &[u8]) -> usize {
