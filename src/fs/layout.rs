@@ -98,6 +98,8 @@ type DataBlock = [u8; BLOCK_SIZE]; // size = 512B
 pub struct DiskInode {
     /// 文件/目录内容的字节数
     pub size: u32,
+    /// 已经分配的大小，并不一定等于 size
+    pub alloc_size: u32, // add this, so we need to change INODE_DIRECT_COUNT from 28 to 27
     /// 直接索引块
     ///
     /// 当文件很小的时候，只需用到直接索引， direct 数组中最多可以指向 INODE_DIRECT_COUNT 个数据块，
@@ -124,6 +126,7 @@ pub struct DiskInode {
 impl DiskInode {
     pub fn initialize(&mut self, type_: DiskInodeType) {
         self.size = 0;
+        self.alloc_size = 0;
         // 直接索引 direct 被清零
         self.direct.iter_mut().for_each(|x| *x = 0);
         // indirect1/2 均被初始化为 0
@@ -182,7 +185,7 @@ impl DiskInode {
 
     /// 计算为了容纳自身 size 字节的内容需要多少个数据块
     pub fn data_blocks(&self) -> u32 {
-        Self::_data_blocks(self.size)
+        Self::_data_blocks(self.alloc_size)
     }
 
     fn _data_blocks(size: u32) -> u32 {
@@ -218,9 +221,9 @@ impl DiskInode {
 
     /// 计算将一个 DiskInode 的 size 扩容到 new_size 需要额外多少个数据和索引块
     pub fn blocks_num_needed(&self, new_size: u32) -> u32 {
-        assert!(new_size >= self.size);
+        assert!(new_size >= self.alloc_size);
         // 调用两次 total_blocks 作差
-        Self::total_blocks(new_size) - Self::total_blocks(self.size)
+        Self::total_blocks(new_size) - Self::total_blocks(self.alloc_size)
     }
 
     /// 通过 increase_size 方法逐步扩充容量
@@ -236,6 +239,7 @@ impl DiskInode {
     ) {
         let mut current_blocks = self.data_blocks(); // 当前文件大小所需的数据块数目
         self.size = new_size;
+        self.alloc_size = new_size;
         let mut total_blocks = self.data_blocks(); // 扩容后的总块数
         let mut new_blocks = new_blocks.into_iter();
 
@@ -325,6 +329,7 @@ impl DiskInode {
         let mut v: Vec<u32> = Vec::new();
         let mut data_blocks = self.data_blocks() as usize;
         self.size = 0;
+        self.alloc_size = 0;
         // 当前已经清空的块数目 分别对应直接索引、一级索引、二级索引
         let mut current_blocks = 0usize;
 
@@ -415,6 +420,7 @@ impl DiskInode {
         let mut start = offset;
         // 取最小值
         // 如果文件剩下的内容还足够多，那么缓冲区会被填满；否则文件剩下的全部内容都会被读到缓冲区中
+        // use size rather than alloc_size
         let end = (offset + buf.len()).min(self.size as usize);
         if start >= end {
             return 0;
@@ -476,7 +482,8 @@ impl DiskInode {
         let mut start = offset;
         // 取最小值
         // 如果文件剩下的内容还足够多，那么缓冲区会被填满；否则文件剩下的全部内容都会被读到缓冲区中
-        let end = (offset + buf.len()).min(self.size as usize);
+        // use alloc_size rather than size
+        let end = (offset + buf.len()).min(self.alloc_size as usize);
         assert!(start <= end);
         // 目前是文件内部第多少个数据块
         let mut start_block = start / BLOCK_SIZE as usize;
@@ -512,6 +519,10 @@ impl DiskInode {
             start_block += 1;
             start = end_current_block;
         }
+
+        // 更新文件大小
+        self.size = end as u32;
+
         write_size
     }
 }
