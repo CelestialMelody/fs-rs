@@ -2,7 +2,18 @@
 
 An easy file system based on eazy-fs of rcore.
 
-**features include:**
+### Usage
+
+```shell
+# for the first time
+make create
+
+# for the second time
+make open
+
+```
+
+### features include:
 
 - read: read a file randomly.
 - write: write a file randomly.
