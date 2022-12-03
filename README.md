@@ -10,7 +10,8 @@ if don't have rust environment, you can download rust by:
 curl https://sh.rustup.rs -sSf | sh
 ```
 
-then you can use `cargo` to build and run:
+then you can use the following command to build and run:
+
 
 ```bash
 # for the first time
