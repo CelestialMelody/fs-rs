@@ -53,4 +53,4 @@ make open
   width: 50%;
 ">
 
-<p style="text-align: right;">图片来源: xiaolincoding</p>
+<p style="text-align: right;">image comes from: xiaolincoding</p>
