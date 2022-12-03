@@ -1,4 +1,4 @@
-use crate::cell::UnSafeCell;
+use crate::{cell::UnSafeCell, fs::Inode};
 use chrono::{
     format::{DelayedFormat, StrftimeItems},
     prelude::*,
@@ -8,6 +8,7 @@ use device::BlockFile;
 use fs::{EasyFileSystem, BLOCK_SIZE};
 use lazy_static::*;
 use std::{
+    collections::HashMap,
     fs::{read_dir, File, OpenOptions},
     io::{stdin, stdout, Read, Write},
     sync::{Arc, Mutex},
@@ -22,8 +23,13 @@ pub const BLOCK_NUM: usize = 0x4000;
 const USER: &str = "Clstilmldy";
 
 lazy_static! {
+    /// shell path
     static ref PATH: UnSafeCell<String> =
         unsafe { UnSafeCell::new(format!("❂ {}   ~\n╰─❯ ", USER)) };
+
+    /// key:child_inode, value:parent_inode
+    static ref INODE: UnSafeCell<HashMap<Inode, Inode>> =
+        unsafe { UnSafeCell::new(HashMap::new()) };
 }
 
 fn main() {
@@ -261,6 +267,34 @@ fn easy_fs_pack() -> std::io::Result<()> {
 
             "fmt" => {
                 curr_folder_inode.clear();
+            }
+
+            "rm" => {
+                let mut file = input.next();
+
+                if file.is_none() {
+                    println!("Worning!!!! 😱😱😱\nI have deleted all files in this folder!");
+                    // 如果没有指定文件名
+                    curr_folder_inode.clear();
+                    continue;
+                }
+
+                loop {
+                    let file_name = file.unwrap_or("");
+                    if file_name == "" {
+                        break;
+                    }
+                    let file_inode = curr_folder_inode.find(file_name);
+                    if file_inode.is_none() {
+                        println!("File not found!");
+                        break;
+                    }
+                    let file_inode = file_inode.unwrap();
+                    file_inode.clear();
+                    file_inode.rm_dir_entry(file_name, Arc::clone(&curr_folder_inode));
+
+                    file = input.next();
+                }
             }
 
             "exit" => break,
