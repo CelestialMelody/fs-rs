@@ -155,6 +155,7 @@ impl Inode {
             .is_some()
         // 如果已经存在，则返回 None
         {
+            println!("file {} already exists", name);
             return None;
         }
 
@@ -204,7 +205,7 @@ impl Inode {
         disk_inode: &mut DiskInode,
         fs: &mut MutexGuard<EasyFileSystem>,
     ) {
-        if new_size < disk_inode.size {
+        if new_size < disk_inode.alloc_size {
             return;
         }
 
@@ -223,7 +224,7 @@ impl Inode {
     pub fn clear(&self) {
         let mut fs = self.fs.lock();
         self.modify_disk_inode(|disk_inode| {
-            let size = disk_inode.size;
+            let size = disk_inode.alloc_size;
             let data_blocks_dealloc = disk_inode.clear_size(&self.block_device);
 
             assert!(data_blocks_dealloc.len() == DiskInode::total_blocks(size) as usize);
@@ -234,6 +235,84 @@ impl Inode {
         });
 
         block_cache_sync_all();
+    }
+
+    /// 删除目录项
+    /// 这个方法感觉不是很好 时间复杂度O(n) 空间复杂度O(n)
+    pub fn rm_dir_entry(&self, file_name: &str, parent_inode: Arc<Inode>) {
+        let _fs = self.fs.lock();
+
+        // 找到dir_entry_pos
+        let pos = parent_inode.dir_entry_pos(file_name); // 提前找到位置，防止拿不到锁
+        if pos.is_none() {
+            println!("rm_dir_entry: file not found");
+            return;
+        }
+        let pos = pos.unwrap();
+        parent_inode.modify_disk_inode(|disk_inode| {
+            let file_count = (disk_inode.size as usize) / DIRENT_SIZE;
+            let new_size = (file_count - 1) * DIRENT_SIZE;
+
+            // 从pos开始，将后面的dir_entry往前移动
+            let mut dir_entry_list: Vec<DirEntry> = Vec::new();
+
+            // 为什么不合并： 读写冲突
+
+            for i in pos..file_count - 1 {
+                let mut dir_entry = DirEntry::create_empty();
+                assert_eq!(
+                    disk_inode.read(
+                        (i + 1) * DIRENT_SIZE,
+                        dir_entry.as_bytes_mut(),
+                        &self.block_device,
+                    ),
+                    DIRENT_SIZE,
+                );
+                dir_entry_list.push(dir_entry);
+            }
+
+            for i in pos..file_count - 1 {
+                let dir_entry = dir_entry_list.remove(0);
+                assert_eq!(
+                    disk_inode.write(i * DIRENT_SIZE, dir_entry.as_bytes(), &self.block_device),
+                    DIRENT_SIZE,
+                );
+            }
+
+            // 将最后一个dir_entry清空
+            let dir_entry = DirEntry::create_empty();
+            disk_inode.write(
+                (file_count - 1) * DIRENT_SIZE,
+                dir_entry.as_bytes(),
+                &self.block_device,
+            );
+
+            // 修改size
+            disk_inode.size = new_size as u32;
+        });
+
+        block_cache_sync_all();
+    }
+
+    fn dir_entry_pos(&self, file_name: &str) -> Option<usize> {
+        self.read_disk_inode(|disk_inode| -> Option<usize> {
+            let file_count = (disk_inode.size as usize) / DIRENT_SIZE;
+            for i in 0..file_count {
+                let mut dir_entry = DirEntry::create_empty();
+                assert_eq!(
+                    disk_inode.read(
+                        i * DIRENT_SIZE,
+                        dir_entry.as_bytes_mut(),
+                        &self.block_device
+                    ),
+                    DIRENT_SIZE
+                );
+                if dir_entry.name() == file_name {
+                    return Some(i);
+                }
+            }
+            None
+        })
     }
 
     // 文件读写
