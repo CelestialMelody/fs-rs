@@ -4,16 +4,23 @@ An easy file system based on eazy-fs of rcore.
 
 ### Usage
 
-```shell
+if don't have rust environment, you can download rust by:
+
+```bash
+curl https://sh.rustup.rs -sSf | sh
+```
+
+then you can use `cargo` to build and run:
+
+```bash
 # for the first time
 make create
 
 # for the second time
 make open
-
 ```
 
-### features include:
+### Features:
 
 - read: read a file randomly.
 - write: write a file randomly.
