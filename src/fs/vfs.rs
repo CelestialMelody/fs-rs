@@ -109,6 +109,11 @@ impl Inode {
         })
     }
 
+    pub fn is_dir(&self) -> bool {
+        let _fs = self.fs.lock();
+        self.read_disk_inode(|disk_inode| disk_inode.is_dir())
+    }
+
     pub fn size(&self) -> usize {
         self.read_disk_inode(|disk_inode| disk_inode.size as usize)
     }
@@ -145,7 +150,7 @@ impl Inode {
 
     // 文件创建
     // create 方法可以在根目录下创建一个文件，该方法只有根目录的 Inode 会调用
-    pub fn create(&self, name: &str) -> Option<Arc<Inode>> {
+    pub fn create(&self, name: &str, kind: DiskInodeType) -> Option<Arc<Inode>> {
         let mut fs = self.fs.lock();
         if self
             .modify_disk_inode(|root_inode| {
@@ -166,7 +171,11 @@ impl Inode {
         get_block_cache(new_inode_block_id as usize, Arc::clone(&self.block_device))
             .lock()
             .modify(new_inode_block_offset, |new_inode: &mut DiskInode| {
-                new_inode.initialize(DiskInodeType::File);
+                if kind == DiskInodeType::File {
+                    new_inode.initialize(DiskInodeType::File);
+                } else {
+                    new_inode.initialize(DiskInodeType::Directory);
+                }
             });
 
         // 将待创建文件的目录项插入到根目录的内容中，使得之后可以索引到
