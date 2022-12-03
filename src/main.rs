@@ -225,6 +225,22 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 // 因为没法保证文件的内容是可打印的( offset 开始读的地方 以及最后的长度 不保证是合法的utf8字符)
             }
 
+            "cat" => {
+                let file_name = input.next().unwrap_or("");
+                let file_inode = curr_folder_inode.find(file_name);
+                if file_inode.is_none() {
+                    println!("File not found!");
+                    continue;
+                }
+                let file_inode = file_inode.unwrap();
+
+                let mut buf = vec![0u8; file_inode.size() as usize];
+                file_inode.read(0, &mut buf);
+                unsafe {
+                    println!("{}", String::from_utf8_unchecked(buf));
+                }
+            }
+
             "chname" => {
                 let file_name = input.next();
                 if file_name.is_none() {
