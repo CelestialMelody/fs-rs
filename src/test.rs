@@ -1,6 +1,7 @@
 #![allow(unused)]
 use super::device;
 use super::fs;
+use crate::fs::DirEntry;
 use crate::BLOCK_NUM;
 use device::BlockFile;
 use fs::{BlockDevice, EasyFileSystem, BLOCK_SIZE};
@@ -31,8 +32,8 @@ fn efs_test() -> std::io::Result<()> {
     // 读取根目录
     let root_inode = EasyFileSystem::root_inode(&efs);
 
-    root_inode.create("filea");
-    root_inode.create("fileb");
+    root_inode.create("filea", fs::DiskInodeType::File);
+    root_inode.create("fileb", fs::DiskInodeType::File);
     for name in root_inode.ls() {
         println!("{}", name);
     }
