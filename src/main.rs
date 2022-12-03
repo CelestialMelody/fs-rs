@@ -8,7 +8,6 @@ use device::BlockFile;
 use fs::{EasyFileSystem, BLOCK_SIZE};
 use lazy_static::*;
 use std::{
-    collections::HashMap,
     fs::{read_dir, File, OpenOptions},
     io::{stdin, stdout, Read, Write},
     sync::{Arc, Mutex},
@@ -26,10 +25,6 @@ lazy_static! {
     /// shell path
     static ref PATH: UnSafeCell<String> =
         unsafe { UnSafeCell::new(format!("❂ {}   ~\n╰─❯ ", USER)) };
-
-    /// key:child_inode, value:parent_inode
-    static ref INODE: UnSafeCell<HashMap<Inode, Inode>> =
-        unsafe { UnSafeCell::new(HashMap::new()) };
 }
 
 fn main() {
@@ -103,7 +98,9 @@ fn easy_fs_pack() -> std::io::Result<()> {
     };
 
     // 读取目录
-    let curr_folder_inode = Arc::new(EasyFileSystem::root_inode(&efs));
+    let root_inode = Arc::new(EasyFileSystem::root_inode(&efs));
+    let mut folder_inode: Vec<Arc<Inode>> = Vec::new();
+    let mut curr_folder_inode = Arc::clone(&root_inode);
 
     loop {
         // shell display
@@ -121,7 +118,66 @@ fn easy_fs_pack() -> std::io::Result<()> {
         let cmd = input.next().unwrap();
         match cmd {
             "cd" => {
+                let mut copy_input = input.clone();
+                let arg = copy_input.next();
+
+                if arg.is_none() {
+                    drop(curr_folder_inode);
+                    curr_folder_inode = Arc::clone(&root_inode);
+                } else {
+                    let arg = arg.unwrap();
+
+                    // 如果 arg 以 "/" 结尾，将 target 设置为 target 的子串
+                    let arg = if arg.ends_with('/') {
+                        &arg[..arg.len() - 1]
+                    } else {
+                        arg
+                    };
+
+                    match arg {
+                        "" => {
+                            drop(curr_folder_inode);
+                            curr_folder_inode = Arc::clone(&root_inode);
+                        }
+                        "." => {}
+                        ".." => {
+                            drop(curr_folder_inode);
+                            let parent_folder_inode = folder_inode.pop();
+                            if parent_folder_inode.is_none() {
+                                curr_folder_inode = Arc::clone(&root_inode);
+                            } else {
+                                curr_folder_inode = parent_folder_inode.unwrap();
+                            }
+                        }
+                        _ => {
+                            let new_inode = curr_folder_inode.find(arg);
+                            if new_inode.is_none() {
+                                println!("cd: no such directory: {}", arg);
+                                continue;
+                            }
+                            let new_inode = new_inode.unwrap();
+                            if !new_inode.is_dir() {
+                                println!("cd: not a directory: {}", arg);
+                                continue;
+                            }
+                            folder_inode.push(Arc::clone(&curr_folder_inode));
+                            drop(curr_folder_inode);
+                            curr_folder_inode = new_inode;
+                        }
+                    }
+                }
+
                 update_path(input.next().unwrap_or(""));
+            }
+
+            "touch" => {
+                let file_name = input.next().unwrap_or("");
+                curr_folder_inode.create(file_name, fs::DiskInodeType::File);
+            }
+
+            "mkdir" => {
+                let file_name = input.next().unwrap_or("");
+                curr_folder_inode.create(file_name, fs::DiskInodeType::Directory);
             }
 
             // 读取目录下的所有文件
@@ -256,7 +312,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
                     let mut all_data: Vec<u8> = Vec::new();
                     host_file.read_to_end(&mut all_data).unwrap();
                     // 创建文件
-                    let inode = curr_folder_inode.create(file.as_str());
+                    let inode = curr_folder_inode.create(file.as_str(), fs::DiskInodeType::File);
                     if inode.is_some() {
                         // 写入文件
                         let inode = inode.unwrap();
@@ -265,17 +321,53 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 }
             }
 
+            // 清空文件系统
             "fmt" => {
-                curr_folder_inode.clear();
+                println!("Worning!!!! 😱😱😱\nI have deleted all files in this folder!");
+                let mut folder: Vec<Arc<Inode>> = Vec::new();
+                let mut files: Vec<Arc<Inode>> = Vec::new(); // inclue folder
+                drop(curr_folder_inode);
+                curr_folder_inode = Arc::clone(&root_inode);
+
+                // 递归遍历文件夹
+                loop {
+                    let all_files_name = curr_folder_inode.ls();
+                    for file_name in all_files_name {
+                        let inode = curr_folder_inode.find(file_name.as_str()).unwrap();
+                        files.push(Arc::clone(&inode));
+                        if inode.is_dir() {
+                            folder.push(Arc::clone(&inode));
+                        }
+                    }
+                    // 遍历所有文件夹
+                    if folder.len() > 0 {
+                        drop(curr_folder_inode);
+                        curr_folder_inode = folder.pop().unwrap();
+                    } else {
+                        break;
+                    }
+                }
+
+                // 清除所有文件 包括文件夹
+                while files.len() > 0 {
+                    let inode = files.pop().unwrap();
+                    inode.clear();
+                }
+
+                // 对于根目录要特殊处理目录项
+                let root_dir = Arc::clone(&root_inode);
+                root_dir.clear();
+
+                PATH.borrow_mut().clear();
+                PATH.borrow_mut()
+                    .push_str(&format!("❂ {}   ~\n╰─❯ ", USER));
             }
 
             "rm" => {
                 let mut file = input.next();
 
                 if file.is_none() {
-                    println!("Worning!!!! 😱😱😱\nI have deleted all files in this folder!");
-                    // 如果没有指定文件名
-                    curr_folder_inode.clear();
+                    println!("Please input file or folder name!");
                     continue;
                 }
 
@@ -289,7 +381,43 @@ fn easy_fs_pack() -> std::io::Result<()> {
                         println!("File not found!");
                         break;
                     }
-                    let file_inode = file_inode.unwrap();
+
+                    let mut file_inode = file_inode.unwrap();
+
+                    if file_inode.is_dir() {
+                        let mut folder: Vec<Arc<Inode>> = Vec::new();
+                        let mut files: Vec<Arc<Inode>> = Vec::new(); // inclue folder
+                        let temp = Arc::clone(&file_inode);
+
+                        // 递归遍历文件夹
+                        loop {
+                            let all_files_name = file_inode.ls();
+                            for file_name in all_files_name {
+                                let inode = file_inode.find(file_name.as_str()).unwrap();
+                                files.push(Arc::clone(&inode));
+                                if inode.is_dir() {
+                                    folder.push(Arc::clone(&inode));
+                                }
+                            }
+                            // 遍历所有文件夹
+                            if folder.len() > 0 {
+                                drop(file_inode);
+                                file_inode = folder.pop().unwrap();
+                            } else {
+                                break;
+                            }
+                        }
+
+                        // 清除所有文件 包括文件夹
+                        while files.len() > 0 {
+                            let inode = files.pop().unwrap();
+                            inode.clear();
+                        }
+
+                        drop(file_inode);
+                        file_inode = Arc::clone(&temp);
+                    }
+
                     file_inode.clear();
                     file_inode.rm_dir_entry(file_name, Arc::clone(&curr_folder_inode));
 
@@ -306,6 +434,13 @@ fn easy_fs_pack() -> std::io::Result<()> {
 }
 
 fn update_path(target: &str) {
+    // 如果 target 以 "/" 结尾，将 target 设置为 target 的子串
+    let target = if target.ends_with('/') {
+        &target[..target.len() - 1]
+    } else {
+        target
+    };
+
     match target {
         // 如果是 target == ""
         "" => {
