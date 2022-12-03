@@ -113,6 +113,7 @@ impl Bitmap {
         None
     }
 
+    /// 参数 bit 为相对 data_area 起始位置的偏移量
     pub fn dealloc(&self, block_device: &Arc<dyn BlockDevice>, bit: usize) {
         let (block_pos, bits64_pos, inner_pos) = decomposition(bit);
         get_block_cache(
@@ -132,7 +133,7 @@ impl Bitmap {
     }
 }
 
-/// 将bit编号 bit 分解为区域中的块编号 block_pos 、块内的组编号 bits64_pos 以及组内编号 inner_pos 的三元组
+/// 将 bit 编号分解为区域中的块编号 block_pos 、块内的组编号 bits64_pos 以及组内编号 inner_pos 的三元组
 fn decomposition(mut bit: usize) -> (usize, usize, usize) {
     let block_pos = bit / BLOCK_BITS;
     bit %= BLOCK_BITS;

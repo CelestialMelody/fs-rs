@@ -85,7 +85,7 @@ impl Inode {
             // 将根目录内容中的所有目录项都读到内存进行逐个比对
             // 如果能够找到，则 find 方法会根据查到 inode 编号，对应生成一个 Inode 用于后续对文件的访问
             if dir_entry.name() == name {
-                return Some(dir_entry.inode_number() as u32);
+                return Some(dir_entry.inode_id() as u32);
             }
         }
         None
@@ -148,9 +148,9 @@ impl Inode {
     pub fn create(&self, name: &str) -> Option<Arc<Inode>> {
         let mut fs = self.fs.lock();
         if self
-            .modify_disk_inode(|root_inode| {
-                assert!(root_inode.is_dir());
-                self.find_inode_id(name, root_inode)
+            .modify_disk_inode(|curr_inode| {
+                assert!(curr_inode.is_dir());
+                self.find_inode_id(name, curr_inode)
             })
             .is_some()
         // 如果已经存在，则返回 None
@@ -176,7 +176,36 @@ impl Inode {
             // 增加根目录的大小
             self.increase_size(new_size as u32, root_inode, &mut fs);
             // 在根目录的最后添加一个目录项
-            let dir_entry = DirEntry::new(name, new_inode_id as u32);
+            // 返回目录 inode_id
+            let dir_entry = DirEntry::new(name, new_inode_id as u32, {
+                let parent_inode_id = if {
+                    let self_block_id = self.block_id;
+                    let self_block_offset = self.block_offset;
+                    // root inode_id is 0
+                    let (block_id, block_offset) = fs.get_disk_inode_pos(0);
+
+                    let is_root = if self_block_id == block_id as usize
+                        && self_block_offset == block_offset
+                    {
+                        true
+                    } else {
+                        false
+                    };
+                    is_root
+                } {
+                    0
+                } else {
+                    self.read_disk_inode(|disk_inode| -> u32 {
+                        let mut dir_entry = DirEntry::create_empty();
+                        assert_eq!(
+                            disk_inode.read(0, dir_entry.as_bytes_mut(), &self.block_device),
+                            DIRENT_SIZE,
+                        );
+                        dir_entry.parent_inode_id()
+                    })
+                };
+                parent_inode_id
+            });
             root_inode.write(
                 // 在此处开始写一个目录项， 大小为 DIRENT_SIZE， 最后root_inode的大小为 new_size
                 file_count * DIRENT_SIZE,
@@ -198,13 +227,39 @@ impl Inode {
         )))
     }
 
+    // pub fn parent_inode_id(&self) -> u32 {
+    //     if self.is_root() {
+    //         return 0;
+    //     }
+
+    //     self.read_disk_inode(|disk_inode| -> u32 {
+    //         let mut dir_entry = DirEntry::create_empty();
+    //         assert_eq!(
+    //             disk_inode.read(0, dir_entry.as_bytes_mut(), &self.block_device),
+    //             DIRENT_SIZE,
+    //         );
+    //         dir_entry.parent_inode_id()
+    //     })
+    // }
+
+    // pub fn inode_id(&self) -> u32 {
+    //     self.read_disk_inode(|disk_inode| -> u32 {
+    //         let mut dir_entry = DirEntry::create_empty();
+    //         assert_eq!(
+    //             disk_inode.read(0, dir_entry.as_bytes_mut(), &self.block_device),
+    //             DIRENT_SIZE,
+    //         );
+    //         dir_entry.inode_id()
+    //     })
+    // }
+
     fn increase_size(
         &self,
         new_size: u32,
         disk_inode: &mut DiskInode,
         fs: &mut MutexGuard<EasyFileSystem>,
     ) {
-        if new_size < disk_inode.size {
+        if new_size < disk_inode.cap_size {
             return;
         }
 
@@ -223,7 +278,7 @@ impl Inode {
     pub fn clear(&self) {
         let mut fs = self.fs.lock();
         self.modify_disk_inode(|disk_inode| {
-            let size = disk_inode.size;
+            let size = disk_inode.cap_size;
             let data_blocks_dealloc = disk_inode.clear_size(&self.block_device);
 
             assert!(data_blocks_dealloc.len() == DiskInode::total_blocks(size) as usize);
@@ -236,6 +291,120 @@ impl Inode {
         block_cache_sync_all();
     }
 
+    /// 非根目录调用
+    pub fn rm_dir_entry(&self, file_name: &str) {
+        // 如果要删除自身，需要获取父亲 inode
+        // 将自己从父亲 inode 中删除
+        // 目前想法是
+        // 1. 内存中维护 curr_inode 与 parent_inode;
+        // 或者修改 DirEntry, 添加 parent_inode_id 通过 parent_inode_id 找到 parent_inode (x)
+        // 2. 不可以直接回收 block 清理block，不能保证 block_id 对应的 block 没有文件了
+        // 3. 可能需要实现 decrease_size
+        // 简单的想法是 回收一个 目录项 -> 改变目录大小，
+        // TODO: 当目录大小为 0 时（DiskInode size），回收目录 block
+        // TODO
+        let fs = self.fs.lock();
+
+        //
+        let parent_inode_id = if {
+            let self_block_id = self.block_id;
+            let self_block_offset = self.block_offset;
+            // root inode_id is 0
+            let (block_id, block_offset) = fs.get_disk_inode_pos(0);
+
+            let is_root = if self_block_id == block_id as usize && self_block_offset == block_offset
+            {
+                true
+            } else {
+                false
+            };
+            is_root
+        } {
+            0
+        } else {
+            // bug: 已经清除了目录项，没法获取父亲 inode_id
+            self.read_disk_inode(|disk_inode| -> u32 {
+                let mut dir_entry = DirEntry::create_empty();
+                assert_eq!(
+                    disk_inode.read(0, dir_entry.as_bytes_mut(), &self.block_device),
+                    DIRENT_SIZE,
+                );
+                dir_entry.parent_inode_id()
+            })
+        };
+
+        //
+
+        let (block_id, block_offset) = fs.get_disk_inode_pos(parent_inode_id);
+        let parent_inode = Arc::new(Self::new(
+            block_id,
+            block_offset,
+            self.fs.clone(),
+            self.block_device.clone(),
+        ));
+        parent_inode.modify_disk_inode(|disk_inode| {
+            let file_count = (disk_inode.size as usize) / DIRENT_SIZE;
+            let new_size = (file_count - 1) * DIRENT_SIZE;
+
+            // 找到dir_entry_pos
+            let pos = self.dir_entry_pos(file_name);
+            if pos.is_none() {
+                println!("rm_dir_entry: file not found");
+                return;
+            }
+            let pos = pos.unwrap();
+
+            // 从pos开始，将后面的dir_entry往前移动
+            for i in pos..file_count - 1 {
+                let mut dir_entry = DirEntry::create_empty();
+                assert_eq!(
+                    disk_inode.read(
+                        (i + 1) * DIRENT_SIZE,
+                        dir_entry.as_bytes_mut(),
+                        &self.block_device,
+                    ),
+                    DIRENT_SIZE,
+                );
+                assert_eq!(
+                    disk_inode.write(i * DIRENT_SIZE, dir_entry.as_bytes(), &self.block_device),
+                    DIRENT_SIZE,
+                );
+            }
+
+            // 将最后一个dir_entry清空
+            let dir_entry = DirEntry::create_empty();
+            disk_inode.write(
+                (file_count - 1) * DIRENT_SIZE,
+                dir_entry.as_bytes(),
+                &self.block_device,
+            );
+
+            // 修改size
+            disk_inode.size = new_size as u32;
+        });
+    }
+
+    fn dir_entry_pos(&self, file_name: &str) -> Option<usize> {
+        let _fs = self.fs.lock();
+        self.read_disk_inode(|disk_inode| -> Option<usize> {
+            let file_count = (disk_inode.size as usize) / DIRENT_SIZE;
+            for i in 0..file_count {
+                let mut dir_entry = DirEntry::create_empty();
+                assert_eq!(
+                    disk_inode.read(
+                        i * DIRENT_SIZE,
+                        dir_entry.as_bytes_mut(),
+                        &self.block_device
+                    ),
+                    DIRENT_SIZE
+                );
+                if dir_entry.name() == file_name {
+                    return Some(i);
+                }
+            }
+            None
+        })
+    }
     // 文件读写
     //从根目录索引到一个文件之后，可以对它进行读写。
     // 注意：和 DiskInode 一样，这里的读写作用在字节序列的一段区间上
@@ -283,6 +452,20 @@ impl Inode {
         block_cache_sync_all();
         size
     }
+
+    // 由于 根目录 没有 DirEntry，因此需要特殊处理
+    // fn is_root(&self) -> bool {
+    //     let fs = self.fs.lock();
+    //     let self_block_id = self.block_id;
+    //     let self_block_offset = self.block_offset;
+    //     // root inode_id is 0
+    //     let (block_id, block_offset) = fs.get_disk_inode_pos(0);
+
+    //     if self_block_id == block_id as usize && self_block_offset == block_offset {
+    //         return true;
+    //     }
+    //     false
+    // }
 
     // TODO 目录索引
 }

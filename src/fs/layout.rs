@@ -98,6 +98,8 @@ type DataBlock = [u8; BLOCK_SIZE]; // size = 512B
 pub struct DiskInode {
     /// 文件/目录内容的字节数
     pub size: u32,
+    /// 已经分配的大小
+    pub cap_size: u32, // add so need to change direct size
     /// 直接索引块
     ///
     /// 当文件很小的时候，只需用到直接索引， direct 数组中最多可以指向 INODE_DIRECT_COUNT 个数据块，
@@ -129,6 +131,7 @@ impl DiskInode {
         // indirect1/2 均被初始化为 0
         self.indirect1 = 0;
         self.indirect2 = 0;
+        self.cap_size = 0;
 
         // 因为最开始文件内容的大小为 0 字节，并不会用到一级/二级索引
         // 为了节约空间，内核会按需分配一级/二级索引块
@@ -155,7 +158,7 @@ impl DiskInode {
             get_block_cache(self.indirect1 as usize, Arc::clone(block_device))
                 .lock()
                 // 解析为 IndirectBlock 指向一个下一级索引块或者数据块
-                .read(0, |indirect_block: &IndirectBlock| {
+                .read(0, |indirect_block: &IndirectBlock| -> u32 {
                     indirect_block[inner_id - INODE_DIRECT_COUNT]
                 })
         } else {
@@ -182,7 +185,7 @@ impl DiskInode {
 
     /// 计算为了容纳自身 size 字节的内容需要多少个数据块
     pub fn data_blocks(&self) -> u32 {
-        Self::_data_blocks(self.size)
+        Self::_data_blocks(self.cap_size)
     }
 
     fn _data_blocks(size: u32) -> u32 {
@@ -218,9 +221,9 @@ impl DiskInode {
 
     /// 计算将一个 DiskInode 的 size 扩容到 new_size 需要额外多少个数据和索引块
     pub fn blocks_num_needed(&self, new_size: u32) -> u32 {
-        assert!(new_size >= self.size);
+        assert!(new_size >= self.cap_size);
         // 调用两次 total_blocks 作差
-        Self::total_blocks(new_size) - Self::total_blocks(self.size)
+        Self::total_blocks(new_size) - Self::total_blocks(self.cap_size)
     }
 
     /// 通过 increase_size 方法逐步扩充容量
@@ -235,6 +238,7 @@ impl DiskInode {
         block_device: &Arc<dyn BlockDevice>,
     ) {
         let mut current_blocks = self.data_blocks(); // 当前文件大小所需的数据块数目
+        self.cap_size = new_size;
         self.size = new_size;
         let mut total_blocks = self.data_blocks(); // 扩容后的总块数
         let mut new_blocks = new_blocks.into_iter();
@@ -251,7 +255,7 @@ impl DiskInode {
                 // 直接索引已经填满，需要分配一级索引
                 self.indirect1 = new_blocks.next().unwrap();
             }
-            current_blocks -= INODE_DIRECT_COUNT as u32;
+            current_blocks -= INODE_DIRECT_COUNT as u32; // 减去直接索引的块数，后面单独计算一级索引的块数 与 INODE_INDIRECT1_COUNT 比较
             total_blocks -= INODE_DIRECT_COUNT as u32;
         } else {
             return;
@@ -324,6 +328,7 @@ impl DiskInode {
         // 保存所有需要回收的块编号
         let mut v: Vec<u32> = Vec::new();
         let mut data_blocks = self.data_blocks() as usize;
+        self.cap_size = 0;
         self.size = 0;
         // 当前已经清空的块数目 分别对应直接索引、一级索引、二级索引
         let mut current_blocks = 0usize;
@@ -447,7 +452,7 @@ impl DiskInode {
             .lock()
             .read(0, |data_blocks: &DataBlock| {
                 let src = &data_blocks[start % BLOCK_SIZE..start % BLOCK_SIZE + block_read_size];
-                dst.copy_from_slice(src);
+                dst.copy_from_slice(src); // 切片必须长度相等
             });
 
             read_size += block_read_size;
@@ -476,7 +481,7 @@ impl DiskInode {
         let mut start = offset;
         // 取最小值
         // 如果文件剩下的内容还足够多，那么缓冲区会被填满；否则文件剩下的全部内容都会被读到缓冲区中
-        let end = (offset + buf.len()).min(self.size as usize);
+        let end = (offset + buf.len()).min(self.cap_size as usize);
         assert!(start <= end);
         // 目前是文件内部第多少个数据块
         let mut start_block = start / BLOCK_SIZE as usize;
@@ -512,6 +517,10 @@ impl DiskInode {
             start_block += 1;
             start = end_current_block;
         }
+
+        // 更新文件大小
+        self.size = end as u32;
+
         write_size
     }
 }
@@ -523,14 +532,16 @@ impl DiskInode {
 // 二元组的首个元素是目录下面的一个文件（或子目录）的文件名（或目录名），
 // 另一个元素则是文件（或子目录）所在的索引节点编号。
 // 目录项相当于目录树结构上的子树节点，我们需要通过它来一级一级的找到实际要访问的文件或目录
+// add: 添加 parent_inode_id; 除了根目录没有 DirEntry，其他文件/目录都有
 #[repr(C)]
 /// 目录项
 ///
 /// 它自身占据空间 32 字节，每个数据块可以存储 16 个目录项
 pub struct DirEntry {
-    /// 目录项 Dirent 最大允许保存长度为 27 的文件/目录名（数组 name 中最末的一个字节留给 \0 ）
+    /// 目录项 Dirent 最大允许保存长度为 27(change to 23) 的文件/目录名（数组 name 中最末的一个字节留给 \0 ）
     name: [u8; NAME_LENGTH_LIMIT + 1],
-    inode_number: u32,
+    inode_id: u32,
+    parent_inode_id: u32, // add: 父目录的 inode 编号, 那么需要减小 name 的长度(no sense)
 }
 
 impl DirEntry {
@@ -538,17 +549,19 @@ impl DirEntry {
     pub fn create_empty() -> Self {
         Self {
             name: [0; NAME_LENGTH_LIMIT + 1],
-            inode_number: 0,
+            inode_id: 0,
+            parent_inode_id: 0,
         }
     }
 
     /// 通过文件名和 inode 编号创建一个目录项
-    pub fn new(name: &str, inode_number: u32) -> Self {
+    pub fn new(name: &str, inode_id: u32, parent_inode_id: u32) -> Self {
         let mut name_bytes = [0; NAME_LENGTH_LIMIT + 1];
         name_bytes[..name.len()].copy_from_slice(name.as_bytes());
         Self {
             name: name_bytes,
-            inode_number,
+            inode_id,
+            parent_inode_id,
         }
     }
 
@@ -579,7 +592,11 @@ impl DirEntry {
         self.name[name.len()] = 0;
     }
 
-    pub fn inode_number(&self) -> u32 {
-        self.inode_number
+    pub fn inode_id(&self) -> u32 {
+        self.inode_id
+    }
+
+    pub fn parent_inode_id(&self) -> u32 {
+        self.parent_inode_id
     }
 }

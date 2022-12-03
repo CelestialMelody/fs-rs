@@ -18,7 +18,7 @@ mod fs;
 
 use lazy_static::*;
 
-use crate::cell::UnSafeCell;
+use crate::{cell::UnSafeCell, fs::NAME_LENGTH_LIMIT};
 
 const BLOCK_NUM: usize = 0x4000;
 
@@ -247,13 +247,10 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 }
                 let new_name = new_name.unwrap();
 
-                // let file_inode = curr_folder_inode.find(file_name);
-                // if file_inode.is_none() {
-                //     println!("File not found!");
-                //     continue;
-                // }
-                // let file_inode = file_inode.unwrap();
-                // file_inode.chname(new_name);
+                if new_name.len() > NAME_LENGTH_LIMIT {
+                    println!("The new name is too long!");
+                    continue;
+                }
 
                 curr_folder_inode.chname(file_name, new_name);
             }
@@ -336,8 +333,37 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 }
             }
 
-            "fmt" => {
-                curr_folder_inode.clear();
+            "create" => {
+                let file_name = input.next().unwrap_or("");
+                curr_folder_inode.create(file_name);
+            }
+
+            "rm" => {
+                let mut file = input.next();
+
+                if file.is_none() {
+                    println!("Worning!!!! 😱😱😱\nI have deleted all files in this folder!");
+                    // 如果没有指定文件名
+                    curr_folder_inode.clear();
+                    continue;
+                }
+
+                loop {
+                    let file_name = file.unwrap_or("");
+                    if file_name == "" {
+                        break;
+                    }
+                    let file_inode = curr_folder_inode.find(file_name);
+                    if file_inode.is_none() {
+                        println!("File not found!");
+                        break;
+                    }
+                    let file_inode = file_inode.unwrap();
+                    file_inode.clear();
+                    file_inode.rm_dir_entry(file_name);
+
+                    file = input.next();
+                }
             }
 
             "exit" => break,

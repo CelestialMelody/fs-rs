@@ -14,9 +14,11 @@ pub const BLOCK_CACHE_SIZE: usize = 16;
 /// Magic number for sanity check
 pub const EAZY_FS_MAGIC: u32 = 0x3b800001;
 /// The max number of direct inodes
-pub const INODE_DIRECT_COUNT: usize = 28;
+// pub const INODE_DIRECT_COUNT: usize = 28;
+pub const INODE_DIRECT_COUNT: usize = 24;
 /// The max length of inode name
-pub const NAME_LENGTH_LIMIT: usize = 27;
+// pub const NAME_LENGTH_LIMIT: usize = 27;
+pub const NAME_LENGTH_LIMIT: usize = 23;
 /// The max number of indirect1 inodes
 pub const INODE_INDIRECT1_COUNT: usize = BLOCK_SIZE / 4;
 /// The max number of indirect2 inodes

@@ -199,11 +199,19 @@ impl EasyFileSystem {
                     *p = 0;
                 })
             });
+
         self.data_bitmap.dealloc(
             &self.block_device,
             (block_id - self.data_area_start_block) as usize,
         )
     }
+
+    // pub fn dealloc_inode(&mut self, inode_id: u32) {
+    //     self.get_disk_inode_pos(inode_id)
+    //     get_block_cache(inode_id, block_device)
+    //     self.inode_bitmap
+    //         .dealloc(&self.block_device, inode_id as usize)
+    // }
 
     // 通过 open 方法可以从一个已写入了 easy-fs 镜像的块设备上打开 easy-fs
     pub fn open(block_device: Arc<dyn BlockDevice>) -> Arc<Mutex<Self>> {
