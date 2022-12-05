@@ -125,7 +125,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
                     drop(curr_folder_inode);
                     curr_folder_inode = Arc::clone(&root_inode);
                 } else {
-                    let arg = arg.unwrap();
+                    let arg = arg.unwrap_or("");
 
                     // 如果 arg 以 "/" 结尾，将 target 设置为 target 的子串
                     let arg = if arg.ends_with('/') {
