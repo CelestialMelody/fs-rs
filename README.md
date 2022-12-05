@@ -4,21 +4,24 @@ An easy file system based on eazy-fs of rcore.
 
 ### Usage
 
-if don't have rust environment, you can download rust by:
+if you don't have rust environment, you can download rust by:
 
 ```bash
 curl https://sh.rustup.rs -sSf | sh
 ```
 
-then you can use the following command to build and run:
+then you can use the following commands to build and run:
 
 
 ```bash
 # for the first time
 make create
 
-# for the second time
+# for the second time or later
 make open
+
+# to clean the build
+make clean
 ```
 
 ### Features:
@@ -33,6 +36,7 @@ make open
 - cat: print the content of a file.
 - fmt: format the file system.
 - chname: change the name of a file or a directory (a simple version of mv).
+- stat: get the size of a file or a directory.(a simple version of ls -l).
 - set: a test for file system (copy files form host to easy-fs).
 - get: a test for file system (copy files from easy-fs to host).
 
@@ -43,7 +47,6 @@ make open
 - pwd: print the current directory.
 - find: find a file or a directory.
 - ln: create a link.
-- stat: print the status of a file or a directory.
 
 
 
