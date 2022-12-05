@@ -212,6 +212,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
                     continue;
                 }
                 let file_inode = file_inode.unwrap();
+                let size = file_inode.size() as usize;
 
                 // 如果 input 只有一个参数，那么就是读取整个文件：offset = 0，size = 文件大小
                 // 如果 input 只有两个参数，那么就是读取文件的一部分：offset = 第一个参数，size = 文件大小 - offset
@@ -220,7 +221,11 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 if next2 == None {
                     // 读取整个文件
                     let offset = next1.parse::<usize>().unwrap();
-                    let size = file_inode.size() as usize - offset;
+                    if size < offset {
+                        println!("🦀 read: offset is too large! 🦐");
+                        continue;
+                    }
+                    let size = size - offset;
                     let mut buf = vec![0u8; size];
                     file_inode.read(offset, &mut buf);
                     unsafe {
@@ -279,7 +284,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 curr_folder_inode.chname(file_name, new_name);
             }
 
-            // write filename offset content
+            // write filename offset/"-a" content
             "write" => {
                 let file_name = input.next();
                 if file_name.is_none() {
@@ -294,12 +299,13 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 }
                 let file_inode = file_inode.unwrap();
 
+                let size = file_inode.size();
+
                 // 如果 next 不是数字
                 let next = input.next().unwrap();
                 if next.parse::<usize>().is_err() {
-                    // 如果是 "a" 则追加
-                    if next == "a" {
-                        let size = file_inode.size();
+                    // 如果是 "a" 则追加 append
+                    if next == "-a" {
                         let context = input.next().unwrap();
                         file_inode.write(size, context.as_bytes());
                     } else {
@@ -312,6 +318,10 @@ fn easy_fs_pack() -> std::io::Result<()> {
                     // 那么就是写入文件的一部分：offset = 第一个参数，content = 第二个参数
                     let offset = next.parse::<usize>().unwrap();
                     let content = input.next().unwrap_or("");
+                    if offset > size {
+                        println!("🦀 write: offset is out of range! 🦐");
+                        continue;
+                    }
                     file_inode.write(offset, content.as_bytes());
                 };
             }
