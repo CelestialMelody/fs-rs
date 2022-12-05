@@ -1,6 +1,6 @@
 # fs-rs
 
-An easy file system based on eazy-fs of rcore.
+An easy mixed index file system based on eazy-fs of rcore.
 
 ### Usage
 
