@@ -119,7 +119,7 @@ impl Inode {
         self.read_disk_inode(|disk_inode| disk_inode.size as usize)
     }
 
-    pub fn inode(&self) -> (usize, usize) {
+    pub fn inode_info(&self) -> (usize, usize) {
         let _fs = self.fs.lock();
         (self.block_id, self.block_offset)
     }
@@ -358,6 +358,18 @@ impl Inode {
                 }
             }
         })
+    }
+
+    pub fn dist_inode_info(&self) {
+        let _fs = self.fs.lock();
+        self.read_disk_inode(|disk_inode| {
+            println!("🐬 alloc_size: {} B.", disk_inode.alloc_size);
+            println!("🐬 size: {} B.", disk_inode.size);
+            println!("🐬 type: {:?}.", disk_inode.type_);
+            println!("🐬 block: {:?}.", disk_inode.direct);
+            println!("🐬 block: {}.", disk_inode.indirect1);
+            println!("🐬 block: {}.", disk_inode.indirect2);
+        });
     }
 
     pub fn write(&self, offset: usize, buf: &[u8]) -> usize {

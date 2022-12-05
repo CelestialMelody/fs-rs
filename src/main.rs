@@ -285,6 +285,8 @@ fn easy_fs_pack() -> std::io::Result<()> {
             }
 
             // write filename offset/"-a" content
+            // 从 offset 开始写入 content, 只覆盖content的长度, 但我的展示方式是不让看后面的部分
+            // 如果想要看后面的部分，可以去修改展示时获取的 size 为 alloc_size
             "write" => {
                 let file_name = input.next();
                 if file_name.is_none() {
@@ -341,10 +343,12 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 }
                 let file_inode = file_inode.unwrap();
                 let size = file_inode.size();
-                let (block_id, block_offset) = file_inode.inode();
-                println!("🐬 The size of {} is {} B. 🐳", file_name, size);
-                println!("🐬 block_id of {} is {}. 🐳", file_name, block_id);
-                println!("🐬 block_offset of {} is {}. 🐳", file_name, block_offset);
+                let (block_id, block_offset) = file_inode.inode_info();
+                println!("🐬 The size of {} is {} B.", file_name, size);
+                println!("🐬 block_id of {} is {}.", file_name, block_id);
+                println!("🐬 block_offset of {} is {}.", file_name, block_offset);
+                println!("🦀🦀🦀🦀🦀🦀🦀\nThe following is the disK_inode info:");
+                file_inode.dist_inode_info();
             }
 
             // 从 easy-fs 读取文件保存到 host 文件系统中
