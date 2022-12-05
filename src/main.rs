@@ -28,7 +28,7 @@ lazy_static! {
 }
 
 fn main() {
-    easy_fs_pack().expect("Error when packing easy fs");
+    easy_fs_pack().expect("🦀 Error when packing easy fs");
 }
 
 fn easy_fs_pack() -> std::io::Result<()> {
@@ -40,7 +40,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 .short("s")
                 .long("source")
                 .takes_value(true)
-                .help("Executable source dir(with backslash '/')"),
+                .help("🦀 Executable source dir(with backslash '/')"),
         )
         .arg(
             // target 参数
@@ -48,7 +48,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 .short("t")
                 .long("target")
                 .takes_value(true)
-                .help("Executable target dir(with backslash '/')"),
+                .help("🦀 Executable target dir(with backslash '/')"),
         )
         .arg(
             // target 参数
@@ -65,7 +65,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
 
     if !target_path.ends_with('/') && !src_path.ends_with('/') {
         // 如果target_path 最后一个字符不是"/"
-        panic!("src_path / target_path must end with '/'");
+        panic!("🦀 src_path / target_path must end with '/'");
     };
 
     let ways = matche.value_of("ways to run").unwrap();
@@ -94,7 +94,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
         let efs = EasyFileSystem::open(block_file.clone());
         efs
     } else {
-        panic!("Please specify the operation(create or open)!");
+        panic!("🦀 Please specify the operation(create or open)!");
     };
 
     // 读取目录
@@ -105,13 +105,13 @@ fn easy_fs_pack() -> std::io::Result<()> {
     loop {
         // shell display
         print!("{}", PATH.borrow());
-        stdout().flush().expect("Failed to flush stdout :(");
+        stdout().flush().expect("🦀 Failed to flush stdout :(");
 
         // Take in user input
         let mut input = String::new();
         stdin()
             .read_line(&mut input)
-            .expect("Failed to read input :(");
+            .expect("🦀 Failed to read input :(");
 
         // Split input into command and args
         let mut input = input.trim().split_whitespace(); // Shadows String with SplitWhitespace Iterator
@@ -152,12 +152,12 @@ fn easy_fs_pack() -> std::io::Result<()> {
                         _ => {
                             let new_inode = curr_folder_inode.find(arg);
                             if new_inode.is_none() {
-                                println!("cd: no such directory: {}", arg);
+                                println!("🦀 cd: no such directory: {}! 🦐", arg);
                                 continue;
                             }
                             let new_inode = new_inode.unwrap();
                             if !new_inode.is_dir() {
-                                println!("cd: not a directory: {}", arg);
+                                println!("🦀 cd: not a directory: {}! 🦐", arg);
                                 continue;
                             }
                             folder_inode.push(Arc::clone(&curr_folder_inode));
@@ -171,12 +171,22 @@ fn easy_fs_pack() -> std::io::Result<()> {
             }
 
             "touch" => {
-                let file_name = input.next().unwrap_or("");
+                let file_name = input.next();
+                if file_name.is_none() {
+                    println!("🦀 touch: Miss file name! 🦐");
+                    continue;
+                }
+                let file_name = file_name.unwrap();
                 curr_folder_inode.create(file_name, fs::DiskInodeType::File);
             }
 
             "mkdir" => {
-                let file_name = input.next().unwrap_or("");
+                let file_name = input.next();
+                if file_name.is_none() {
+                    println!("🦀 mkdir: Miss file name! 🦐");
+                    continue;
+                }
+                let file_name = file_name.unwrap();
                 curr_folder_inode.create(file_name, fs::DiskInodeType::Directory);
             }
 
@@ -190,10 +200,15 @@ fn easy_fs_pack() -> std::io::Result<()> {
 
             // read filename offset size
             "read" => {
-                let file_name = input.next().unwrap_or("");
+                let file_name = input.next();
+                if file_name.is_none() {
+                    println!("🦀 read: Miss file name! 🦐");
+                    continue;
+                }
+                let file_name = file_name.unwrap();
                 let file_inode = curr_folder_inode.find(file_name);
                 if file_inode.is_none() {
-                    println!("File not found!");
+                    println!("🦀 read: File not found! 🦐");
                     continue;
                 }
                 let file_inode = file_inode.unwrap();
@@ -226,10 +241,15 @@ fn easy_fs_pack() -> std::io::Result<()> {
             }
 
             "cat" => {
-                let file_name = input.next().unwrap_or("");
+                let file_name = input.next();
+                if file_name.is_none() {
+                    println!("🦀 cat: Miss file name! 🦐");
+                    continue;
+                }
+                let file_name = file_name.unwrap();
                 let file_inode = curr_folder_inode.find(file_name);
                 if file_inode.is_none() {
-                    println!("File not found!");
+                    println!("🦀 cat: File not found! 🦐");
                     continue;
                 }
                 let file_inode = file_inode.unwrap();
@@ -244,14 +264,14 @@ fn easy_fs_pack() -> std::io::Result<()> {
             "chname" => {
                 let file_name = input.next();
                 if file_name.is_none() {
-                    println!("Please specify the file name!");
+                    println!("🦀 chname: Miss file name! 🦐");
                     continue;
                 }
                 let file_name = file_name.unwrap();
 
                 let new_name = input.next();
                 if new_name.is_none() {
-                    println!("Please specify the new name!");
+                    println!("🦀 chname: Please specify the new name! 🦐");
                     continue;
                 }
                 let new_name = new_name.unwrap();
@@ -261,10 +281,15 @@ fn easy_fs_pack() -> std::io::Result<()> {
 
             // write filename offset content
             "write" => {
-                let file_name = input.next().unwrap_or("");
+                let file_name = input.next();
+                if file_name.is_none() {
+                    println!("🦀 write: Miss file name! 🦐");
+                    continue;
+                }
+                let file_name = file_name.unwrap();
                 let file_inode = curr_folder_inode.find(file_name);
                 if file_inode.is_none() {
-                    println!("File not found!");
+                    println!("🦀 write: File not found! 🦐");
                     continue;
                 }
                 let file_inode = file_inode.unwrap();
@@ -272,9 +297,16 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 // 如果 next 不是数字
                 let next = input.next().unwrap();
                 if next.parse::<usize>().is_err() {
-                    // 那么就是写入整个文件：offset = 0，content = 第一个参数
-                    let content = next;
-                    file_inode.write(0, content.as_bytes());
+                    // 如果是 "a" 则追加
+                    if next == "a" {
+                        let size = file_inode.size();
+                        let context = input.next().unwrap();
+                        file_inode.write(size, context.as_bytes());
+                    } else {
+                        // 那么就是写入整个文件：offset = 0，content = 第一个参数
+                        let content = next;
+                        file_inode.write(0, content.as_bytes());
+                    }
                 } else {
                     // 如果 next 是数字
                     // 那么就是写入文件的一部分：offset = 第一个参数，content = 第二个参数
@@ -284,11 +316,29 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 };
             }
 
+            // simple: get size of files
+            "stat" => {
+                let file_name = input.next();
+                if file_name.is_none() {
+                    println!("🦀 stat: Miss file name! 🦐");
+                    continue;
+                }
+                let file_name = file_name.unwrap();
+                let file_inode = curr_folder_inode.find(file_name);
+                if file_inode.is_none() {
+                    println!("🦀 stat: File not found! 🦐");
+                    continue;
+                }
+                let file_inode = file_inode.unwrap();
+                let size = file_inode.size();
+                println!("🐬 The size of {} is {} B. 🐳", file_name, size);
+            }
+
             // 从 easy-fs 读取文件保存到 host 文件系统中
             "get" => {
                 for file in curr_folder_inode.ls() {
                     // 从easy-fs中读取文件
-                    println!("get {} from easy-fs", file);
+                    println!("🐬 get {} from easy-fs.", file);
                     let inode = curr_folder_inode.find(file.as_str()).unwrap();
                     let mut all_data: Vec<u8> = vec![0; inode.size() as usize];
                     inode.read(0, &mut all_data);
@@ -323,7 +373,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
 
                 for file in files {
                     // 从host文件系统中读取文件
-                    println!("set {}{} to easy-fs", src_path, file);
+                    println!("🐬 set {}{} to easy-fs.", src_path, file);
                     let mut host_file = File::open(format!("{}{}", src_path, file)).unwrap();
                     let mut all_data: Vec<u8> = Vec::new();
                     host_file.read_to_end(&mut all_data).unwrap();
@@ -339,7 +389,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
 
             // 清空文件系统
             "fmt" => {
-                println!("Worning!!!! 😱😱😱\nI have deleted all files in this folder!");
+                println!("🐬 Worning!!!! 😱😱😱\n🐬 I have deleted all files in this folder! 🐳");
                 let mut folder: Vec<Arc<Inode>> = Vec::new();
                 let mut files: Vec<Arc<Inode>> = Vec::new(); // inclue folder
                 drop(curr_folder_inode);
@@ -383,18 +433,18 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 let mut file = input.next();
 
                 if file.is_none() {
-                    println!("Please input file or folder name!");
+                    println!("🦀 Please input file or folder name! 🦐");
                     continue;
                 }
 
                 loop {
-                    let file_name = file.unwrap_or("");
-                    if file_name == "" {
+                    if file.is_none() {
                         break;
                     }
+                    let file_name = file.unwrap();
                     let file_inode = curr_folder_inode.find(file_name);
                     if file_inode.is_none() {
-                        println!("File not found!");
+                        println!("🦀 rm: File not found! 🦐");
                         break;
                     }
 
@@ -442,7 +492,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
             }
 
             "exit" => break,
-            _ => println!("Unknown command: {}", cmd),
+            _ => println!("🦀 Unknown command: {}! 🦐", cmd),
         }
     }
 
