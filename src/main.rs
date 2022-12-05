@@ -287,6 +287,8 @@ fn easy_fs_pack() -> std::io::Result<()> {
             // write filename offset/"-a" content
             // 从 offset 开始写入 content, 只覆盖content的长度, 但我的展示方式是不让看后面的部分
             // 如果想要看后面的部分，可以去修改展示时获取的 size 为 alloc_size
+            // 另外，目前写入的 content 没法换行，也就是读一串内容；
+            // 如果要修改：循环读取 input，直到读到一个特殊字符
             "write" => {
                 let file_name = input.next();
                 if file_name.is_none() {
@@ -301,31 +303,64 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 }
                 let file_inode = file_inode.unwrap();
 
-                let size = file_inode.size();
-
+                // let mut size = file_inode.size();
                 // 如果 next 不是数字
-                let next = input.next().unwrap();
-                if next.parse::<usize>().is_err() {
+                // let next = input.next().unwrap();
+                // if next.parse::<usize>().is_err() {
+                //     // 如果是 "a" 则追加 append
+                //     if next == "-a" {
+                //         let context = input.next().unwrap();
+                //         file_inode.write(size, context.as_bytes());
+                //     } else {
+                //         // 那么就是写入整个文件：offset = 0，content = 第一个参数
+                //         let content = next;
+                //         file_inode.write(0, content.as_bytes());
+                //     }
+                // } else {
+                //     // 如果 next 是数字
+                //     // 那么就是写入文件的一部分：offset = 第一个参数，content = 第二个参数
+                //     let offset = next.parse::<usize>().unwrap();
+                //     let content = input.next().unwrap_or("");
+                //     if offset > size {
+                //         println!("🦀 write: Offset is out of range! 🦐");
+                //         continue;
+                //     }
+                //     file_inode.write(offset, content.as_bytes());
+                // };
+
+                //
+                // 目前写入的 content 没法换行，也就是读一串内容；
+                // 如果要修改：循环读取 input，直到读到一个特殊字符
+                //
+
+                let mut offset;
+                let next = input.next();
+
+                if next.is_some() {
+                    let arg = next.unwrap();
                     // 如果是 "a" 则追加 append
-                    if next == "-a" {
-                        let context = input.next().unwrap();
-                        file_inode.write(size, context.as_bytes());
+                    if arg.parse::<usize>().is_err() && arg == "-a" {
+                        offset = file_inode.size();
                     } else {
-                        // 那么就是写入整个文件：offset = 0，content = 第一个参数
-                        let content = next;
-                        file_inode.write(0, content.as_bytes());
+                        offset = arg.parse::<usize>().unwrap();
                     }
                 } else {
-                    // 如果 next 是数字
-                    // 那么就是写入文件的一部分：offset = 第一个参数，content = 第二个参数
-                    let offset = next.parse::<usize>().unwrap();
-                    let content = input.next().unwrap_or("");
-                    if offset > size {
-                        println!("🦀 write: Offset is out of range! 🦐");
-                        continue;
+                    offset = 0;
+                }
+
+                println!("🐳 write: Please input content, end with newline EOF. 🐬");
+
+                loop {
+                    let mut content: String = String::new();
+                    stdin().read_line(&mut content).unwrap();
+                    if content == "EOF" || content == "EOF\n" {
+                        // 让文件的最后一行不是空行
+                        file_inode.write(offset - 1, "".as_bytes());
+                        break;
                     }
                     file_inode.write(offset, content.as_bytes());
-                };
+                    offset += content.len();
+                }
             }
 
             // simple: get size of files
