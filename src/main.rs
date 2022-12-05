@@ -222,7 +222,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
                     // 读取整个文件
                     let offset = next1.parse::<usize>().unwrap();
                     if size < offset {
-                        println!("🦀 read: offset is too large! 🦐");
+                        println!("🦀 read: Offset is too large! 🦐");
                         continue;
                     }
                     let size = size - offset;
@@ -319,7 +319,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
                     let offset = next.parse::<usize>().unwrap();
                     let content = input.next().unwrap_or("");
                     if offset > size {
-                        println!("🦀 write: offset is out of range! 🦐");
+                        println!("🦀 write: Offset is out of range! 🦐");
                         continue;
                     }
                     file_inode.write(offset, content.as_bytes());
@@ -351,7 +351,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
             "get" => {
                 for file in curr_folder_inode.ls() {
                     // 从easy-fs中读取文件
-                    println!("🐬 get {} from easy-fs.", file);
+                    println!("🐬 Get {} from easy-fs.", file);
                     let inode = curr_folder_inode.find(file.as_str()).unwrap();
                     let mut all_data: Vec<u8> = vec![0; inode.size() as usize];
                     inode.read(0, &mut all_data);
@@ -386,7 +386,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
 
                 for file in files {
                     // 从host文件系统中读取文件
-                    println!("🐬 set {}{} to easy-fs.", src_path, file);
+                    println!("🐬 Set {}{} to easy-fs.", src_path, file);
                     let mut host_file = File::open(format!("{}{}", src_path, file)).unwrap();
                     let mut all_data: Vec<u8> = Vec::new();
                     host_file.read_to_end(&mut all_data).unwrap();
