@@ -2,8 +2,9 @@ TARGET_NAME := easy-fs
 POJECT_NAME := fs-rs
 MODE := debug
 # MODE := release # 此时没法调试，release 会丢弃调试信息
-# TARGET_DIR := $(PWD)
-DEFAULT_TARGET := $(TARGET_DIR)/target/$(MODE)/$(TARGET_NAME)
+ROOT_DIR := $(PWD)
+# TARGET_DIR := ROOT_DIR
+DEFAULT_TARGET := $(ROOT_DIR)/target/$(MODE)/$(TARGET_NAME)
 
 build:
 # 如果是 mode == release
