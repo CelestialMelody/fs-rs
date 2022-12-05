@@ -119,6 +119,11 @@ impl Inode {
         self.read_disk_inode(|disk_inode| disk_inode.size as usize)
     }
 
+    pub fn inode(&self) -> (usize, usize) {
+        let _fs = self.fs.lock();
+        (self.block_id, self.block_offset)
+    }
+
     // 包括 find 在内，所有暴露给文件系统的使用者的文件系统操作（还包括接下来将要介绍的几种），
     // 全程均需持有 EasyFileSystem 的互斥锁
     // （相对而言，文件系统内部的操作，如之前的 Inode::new 或是上面的 find_inode_id ，

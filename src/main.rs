@@ -341,7 +341,10 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 }
                 let file_inode = file_inode.unwrap();
                 let size = file_inode.size();
+                let (block_id, block_offset) = file_inode.inode();
                 println!("🐬 The size of {} is {} B. 🐳", file_name, size);
+                println!("🐬 block_id of {} is {}. 🐳", file_name, block_id);
+                println!("🐬 block_offset of {} is {}. 🐳", file_name, block_offset);
             }
 
             // 从 easy-fs 读取文件保存到 host 文件系统中
