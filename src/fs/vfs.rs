@@ -60,14 +60,15 @@ impl Inode {
     }
 
     // 文件索引
-    // 目前：
+    // USED：
     // 在目录树上仅有一个目录——那就是作为根节点的根目录。所有的文件都在根目录下面。
     // 于是，我们不必实现目录索引。
     // 文件索引的查找比较简单，仅需在根目录的目录项中根据文件名找到文件的 inode 编号即可。
     // 由于没有子目录的存在，这个过程只会进行一次
 
+    // FEAT: 现在支持目录了
+
     /// 根据名称查找磁盘 inode 下的 inode
-    /// 尝试从根目录的 DiskInode 上找到要索引的文件名对应的 inode 编号
     fn find_inode_id(&self, name: &str, disk_inode: &DiskInode) -> Option<u32> {
         assert!(disk_inode.is_dir()); // 一定是目录
         let file_count = (disk_inode.size as usize) / DIRENT_SIZE;
@@ -82,7 +83,7 @@ impl Inode {
                 DIRENT_SIZE,
             ); // 读取目录项
 
-            // 将根目录内容中的所有目录项都读到内存进行逐个比对
+            // 将目录内容中的所有目录项都读到内存进行逐个比对
             // 如果能够找到，则 find 方法会根据查到 inode 编号，对应生成一个 Inode 用于后续对文件的访问
             if dir_entry.name() == name {
                 return Some(dir_entry.inode_number() as u32);
@@ -91,7 +92,6 @@ impl Inode {
         None
     }
 
-    // find 方法只会被根目录 Inode 调用，文件系统中其他文件的 Inode 不会调用这个方法
     pub fn find(&self, name: &str) -> Option<Arc<Inode>> {
         let fs = self.fs.lock();
         self.read_disk_inode(|disk_inode| {
@@ -126,8 +126,7 @@ impl Inode {
     // 这能够保证在多核情况下，同时最多只能有一个核在进行文件系统相关操作。
 
     // 文件列举
-    // ls 方法可以收集根目录下的所有文件的文件名并以向量的形式返回，
-    // 这个方法只有根目录的 Inode 才会调用
+    // ls 方法可以收集目录下的所有文件的文件名并以向量的形式返回，
     pub fn ls(&self) -> Vec<String> {
         let _fs = self.fs.lock();
         self.read_disk_inode(|disk_inode| {
@@ -150,7 +149,7 @@ impl Inode {
     }
 
     // 文件创建
-    // create 方法可以在根目录下创建一个文件，该方法只有根目录的 Inode 会调用
+    // create 方法可以在目录下创建一个文件
     pub fn create(&self, name: &str, kind: DiskInodeType) -> Option<Arc<Inode>> {
         let mut fs = self.fs.lock();
         if self
@@ -179,14 +178,14 @@ impl Inode {
                 }
             });
 
-        // 将待创建文件的目录项插入到根目录的内容中，使得之后可以索引到
+        // 将待创建文件的目录项插入到目录的内容中，使得之后可以索引到
         self.modify_disk_inode(|root_inode| {
-            // 在根目录中添加一个目录项
+            // 在目录中添加一个目录项
             let file_count = (root_inode.size as usize) / DIRENT_SIZE;
             let new_size = (file_count + 1) * DIRENT_SIZE;
-            // 增加根目录的大小
+            // 增加目录的大小
             self.increase_size(new_size as u32, root_inode, &mut fs);
-            // 在根目录的最后添加一个目录项
+            // 在目录的最后添加一个目录项
             let dir_entry = DirEntry::new(name, new_inode_id as u32);
             root_inode.write(
                 // 在此处开始写一个目录项， 大小为 DIRENT_SIZE， 最后root_inode的大小为 new_size
@@ -326,7 +325,7 @@ impl Inode {
     }
 
     // 文件读写
-    //从根目录索引到一个文件之后，可以对它进行读写。
+    //从目录索引到一个文件之后，可以对它进行读写。
     // 注意：和 DiskInode 一样，这里的读写作用在字节序列的一段区间上
 
     pub fn read(&self, offset: usize, buf: &mut [u8]) -> usize {
