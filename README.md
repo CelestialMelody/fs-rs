@@ -24,7 +24,7 @@ make open
 make clean
 ```
 
-### Features:
+### Features
 
 - read: read a file randomly.
 - write: write a file randomly.
