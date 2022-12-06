@@ -17,6 +17,22 @@
                 "open"
             ],
             "cwd": "${workspaceRoot}",
+        },
+        {
+            "name": "(Windows) Launch",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceRoot}/target/debug/easy-fs.exe",
+            "args": [
+                "-s",
+                "src/fs/",
+                "-t",
+                "test/",
+                "-w",
+                // "create", // 先使用 crate 创建文件系统
+                "open"
+            ],
+            "cwd": "${workspaceRoot}",
         }
     ]
 }

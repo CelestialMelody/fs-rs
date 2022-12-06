@@ -23,6 +23,9 @@ create: build
 open: build
 	$(DEFAULT_TARGET) -s src/fs/ -t test/ -w open
 
+debug: build
+	gdb $(DEFAULT_TARGET)
+
 clean:
 	cargo clean
 # 如果有 test 文件夹 则删除
