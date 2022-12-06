@@ -388,6 +388,4 @@ impl Inode {
         block_cache_sync_all();
         size
     }
-
-    // TODO 目录索引
 }

@@ -258,5 +258,4 @@ impl EasyFileSystem {
     }
 
     // TODO: dealloc_inode 未实现，因为现在还不支持文件删除
-    // TODO: 支持相对路径
 }
