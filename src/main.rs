@@ -379,9 +379,9 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 let file_inode = file_inode.unwrap();
                 let size = file_inode.size();
                 let (block_id, block_offset) = file_inode.inode_info();
-                println!("🐬 The size of {} is {} B.", file_name, size);
-                println!("🐬 block_id of {} is {}.", file_name, block_id);
-                println!("🐬 block_offset of {} is {}.", file_name, block_offset);
+                println!("🐳 The size of {} is {} B.", file_name, size);
+                println!("🐳 block_id of {} is {}.", file_name, block_id);
+                println!("🐳 block_offset of {} is {}.", file_name, block_offset);
                 println!("🦀🦀🦀🦀🦀🦀🦀\nThe following is the disK_inode info:");
                 file_inode.dist_inode_info();
             }
@@ -399,7 +399,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
                         "{}{} {}",
                         target_path,
                         format!("{}", {
-                            let fmt = "%Y-%m-%d %H:%M:%S";
+                            let fmt = "%Y-%m-%d %H:%M:%S"; // windows may be not support ":"
                             let now: DateTime<Local> = Local::now();
                             let dft: DelayedFormat<StrftimeItems> = now.format(fmt);
                             dft.to_string()
@@ -425,7 +425,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
 
                 for file in files {
                     // 从host文件系统中读取文件
-                    println!("🐬 Set {}{} to easy-fs.", src_path, file);
+                    println!("🐳 Set {}{} to easy-fs.", src_path, file);
                     let mut host_file = File::open(format!("{}{}", src_path, file)).unwrap();
                     let mut all_data: Vec<u8> = Vec::new();
                     host_file.read_to_end(&mut all_data).unwrap();
@@ -441,7 +441,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
 
             // 清空文件系统
             "fmt" => {
-                println!("🐬 Worning!!!! 😱😱😱\n🐬 I have deleted all files in this folder! 🐳");
+                println!("🐳 Worning!!!! 😱😱😱\n🐳 I have deleted all files in this folder! 🐬");
                 let mut folder: Vec<Arc<Inode>> = Vec::new();
                 let mut files: Vec<Arc<Inode>> = Vec::new(); // inclue folder
                 drop(curr_folder_inode);
@@ -544,6 +544,43 @@ fn easy_fs_pack() -> std::io::Result<()> {
             }
 
             "exit" => break,
+
+            "help" => {
+                println!("🐳 help: show helps.\n");
+                println!("🐳 ls: list all files in current folder.\n");
+                println!("🐳 cd: change current folder.\n");
+                println!("🐳 cat: print file content.\n");
+                println!("🐳 touch: create a file.\n");
+                println!("🐳 mkdir: create a folder.\n");
+                println!("🐳 stat: show file or folder stat.\n");
+                println!("🐳 get: a test of fs, getting files to host form root directory.\n");
+                println!("🐳 set: a test of fs, setting host files (src files of fs) to root directory.\n");
+                println!("🐳 fmt: format easy-fs.\n");
+                println!("🐳 exit: exit easy-fs.\n");
+
+                println!("🐳 chname: change file or folder name.");
+                println!("   🍡 usage: chname old_name new_name");
+                println!("   🍡 note: the length of new_name is expected to be less than 27 ascii characters,");
+                println!("          or no more than 9 unicode characters.");
+                println!();
+
+
+                println!("🐳 rm: remove files or folders.");
+                println!("   🍡 usage: rm file1 folder2 file3 ...\n");
+
+                println!("🐳 write: write content to file.");
+                println!("   🍡 usage: write file_name (offset or \"-a\") content");
+                println!("   🍡 offset: write content to file from offset.");
+                println!("   🍡 -a: append content to file.");
+                println!("   🍡 note: contents end with newline EOF.\n");
+
+                println!("🐳 read: read content from file.");
+                println!("   🍡 usage: read file_name (offset) (length)");
+                println!("   🍡 offset: read content from file from offset.");
+                println!("   🍡 length: read content length.");
+                println!("   🍡 if offset and length are not set, read all content.\n");
+
+            }
             _ => println!("🦀 Unknown command: {}! 🦐", cmd),
         }
     }
