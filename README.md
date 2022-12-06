@@ -39,6 +39,7 @@ make clean
 - stat: get the size of a file or a directory.(a simple version of ls -l).
 - set: a test for file system (copy files form host to easy-fs).
 - get: a test for file system (copy files from easy-fs to host).
+- help: show the help information.
 
 *maybe more in future*
 
