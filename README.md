@@ -40,7 +40,7 @@ make clean
 - set: a test for file system (copy files form host to easy-fs).
 - get: a test for file system (copy files from easy-fs to host).
 
-*maybe more in future:*
+*maybe more in future*
 
 - mv: move a file or a directory.
 - cp: copy a file or a directory.
