@@ -363,12 +363,12 @@ impl Inode {
     pub fn dist_inode_info(&self) {
         let _fs = self.fs.lock();
         self.read_disk_inode(|disk_inode| {
-            println!("🐬 alloc_size: {} B.", disk_inode.alloc_size);
-            println!("🐬 size: {} B.", disk_inode.size);
-            println!("🐬 type: {:?}.", disk_inode.type_);
-            println!("🐬 block: {:?}.", disk_inode.direct);
-            println!("🐬 block: {}.", disk_inode.indirect1);
-            println!("🐬 block: {}.", disk_inode.indirect2);
+            println!("🐳 alloc_size: {} B.", disk_inode.alloc_size);
+            println!("🐳 size: {} B.", disk_inode.size);
+            println!("🐳 type: {:?}.", disk_inode.type_);
+            println!("🐳 direct blocks: {:?}.", disk_inode.direct);
+            println!("🐳 indirect1 block: {}.", disk_inode.indirect1);
+            println!("🐳 indirect2 block: {}.", disk_inode.indirect2);
         });
     }
 
