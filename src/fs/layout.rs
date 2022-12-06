@@ -520,9 +520,16 @@ impl DiskInode {
             start = end_current_block;
         }
 
+        // BUG(for disk_inode.size): 使用 chname 会导致文件大小不正确
+        // 当时写这条语句的目的是为了 写文件时 不让读取后面的内容: 从 offset 开始写入 content, 只覆盖content的长度, 但我的展示方式是不让看后面的部分
+        // fix: 不应该在这个地方更新文件大小 区分情况: 文件 与 文件夹
+        //      请在全局使用 write 的地方注意对 size 的更新
+        //      区分 文件 文件夹 原因是目前并没有实现 对删除目录下的目录项后，回收的操作
+        // 解释：对于目录项本身的回收比较简单：inode.clear() 但是，对于父亲（目录）来说比较麻烦；
+        //      删除目录项后，对于目录项的父亲（目录），它的其他目录项仍然可能占用磁盘块，没法使用 data_dealloc 回收
+        // 另外，在 write 之前会调用 increase_size 不必担心 size 不对
         // 更新文件大小
-        self.size = end as u32;
-
+        // self.size = end as u32;
         write_size
     }
 }

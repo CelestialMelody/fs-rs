@@ -301,7 +301,7 @@ impl Inode {
                 &self.block_device,
             );
 
-            // 修改size
+            // 修改size (ps: 可以去看看 layout::write 处提到的bug-fix)
             disk_inode.size = new_size as u32;
         });
 
@@ -343,8 +343,11 @@ impl Inode {
 
         self.modify_disk_inode(|curr_inode| {
             // find file by name
-            let file_count = (curr_inode.size as usize) / DIRENT_SIZE;
+            let file_count = (curr_inode.alloc_size as usize) / DIRENT_SIZE;
             let mut dir_entry = DirEntry::create_empty();
+
+            // BUG(disk_inode.size): 之后的文件无法读取 -> write change size
+
             for i in 0..file_count {
                 curr_inode.read(
                     i * DIRENT_SIZE,
@@ -357,7 +360,9 @@ impl Inode {
                     break;
                 }
             }
-        })
+        });
+        // fix: 此时退出文件 cache 未同步, 再次打开时不会被修改(事实上可以在 main.rs 的 exit 中同步))
+        block_cache_sync_all();
     }
 
     pub fn dist_inode_info(&self) {
@@ -383,7 +388,12 @@ impl Inode {
             // 如果写入的数据超过了文件的大小，则需要增加文件的大小
             self.increase_size((offset + buf.len()) as u32, disk_inode, &mut fs);
             // 写入数据
-            disk_inode.write(offset, buf, &self.block_device)
+            let write_size = disk_inode.write(offset, buf, &self.block_device);
+
+            // 修改size (ps: 可以去看看 layout::write 处提到的bug-fix)
+            disk_inode.size = (offset + write_size) as u32;
+
+            write_size
         });
         block_cache_sync_all();
         size
