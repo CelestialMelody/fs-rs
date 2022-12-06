@@ -541,7 +541,7 @@ impl DiskInode {
 pub struct DirEntry {
     /// 目录项 Dirent 最大允许保存长度为 27 的文件/目录名（数组 name 中最末的一个字节留给 \0 ）
     name: [u8; NAME_LENGTH_LIMIT + 1],
-    inode_number: u32,
+    inode_id: u32,
 }
 
 impl DirEntry {
@@ -549,17 +549,17 @@ impl DirEntry {
     pub fn create_empty() -> Self {
         Self {
             name: [0; NAME_LENGTH_LIMIT + 1],
-            inode_number: 0,
+            inode_id: 0,
         }
     }
 
     /// 通过文件名和 inode 编号创建一个目录项
-    pub fn new(name: &str, inode_number: u32) -> Self {
+    pub fn new(name: &str, inode_id: u32) -> Self {
         let mut name_bytes = [0; NAME_LENGTH_LIMIT + 1];
         name_bytes[..name.len()].copy_from_slice(name.as_bytes());
         Self {
             name: name_bytes,
-            inode_number,
+            inode_id,
         }
     }
 
@@ -590,7 +590,7 @@ impl DirEntry {
         self.name[name.len()] = 0;
     }
 
-    pub fn inode_number(&self) -> u32 {
-        self.inode_number
+    pub fn inode_id(&self) -> u32 {
+        self.inode_id
     }
 }

@@ -86,7 +86,7 @@ impl Inode {
             // 将目录内容中的所有目录项都读到内存进行逐个比对
             // 如果能够找到，则 find 方法会根据查到 inode 编号，对应生成一个 Inode 用于后续对文件的访问
             if dir_entry.name() == name {
-                return Some(dir_entry.inode_number() as u32);
+                return Some(dir_entry.inode_id() as u32);
             }
         }
         None
