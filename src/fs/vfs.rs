@@ -18,7 +18,7 @@ use super::{
 use spin::{Mutex, MutexGuard};
 
 pub struct Inode {
-    /// 位于哪个盘块
+    /// 位于哪个盘块(Inode位于的磁盘块)
     block_id: usize,
     /// 盘块上的偏移
     block_offset: usize,

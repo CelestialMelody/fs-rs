@@ -380,8 +380,11 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 let size = file_inode.size();
                 let (block_id, block_offset) = file_inode.inode_info();
                 println!("🐳 The size of {} is {} B.", file_name, size);
-                println!("🐳 block_id of {} is {}.", file_name, block_id);
-                println!("🐳 block_offset of {} is {}.", file_name, block_offset);
+                println!("🐳 The block_id of {}'s inode is {}.", file_name, block_id);
+                println!(
+                    "🐳 The block_offset of {}'s inode is {}.",
+                    file_name, block_offset
+                );
                 println!("🦀🦀🦀🦀🦀🦀🦀\nThe following is the disK_inode info:");
                 file_inode.dist_inode_info();
             }
@@ -564,7 +567,6 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 println!("          or no more than 9 unicode characters.");
                 println!();
 
-
                 println!("🐳 rm: remove files or folders.");
                 println!("   🍡 usage: rm file1 folder2 file3 ...\n");
 
@@ -579,7 +581,6 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 println!("   🍡 offset: read content from file from offset.");
                 println!("   🍡 length: read content length.");
                 println!("   🍡 if offset and length are not set, read all content.\n");
-
             }
             _ => println!("🦀 Unknown command: {}! 🦐", cmd),
         }
