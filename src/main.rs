@@ -1,4 +1,7 @@
-use crate::{cell::UnSafeCell, fs::Inode};
+use crate::{
+    cell::UnSafeCell,
+    fs::{block_cache_sync_all, Inode},
+};
 use chrono::{
     format::{DelayedFormat, StrftimeItems},
     prelude::*,
@@ -546,7 +549,10 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 }
             }
 
-            "exit" => break,
+            "exit" => {
+                block_cache_sync_all(); // fix bug: when exit, the data in block cache will not be written to disk
+                break;
+            }
 
             "help" => {
                 println!("🐳 help: show helps.\n");
