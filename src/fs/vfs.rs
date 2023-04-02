@@ -1,8 +1,8 @@
-//! EasyFileSystem 实现了磁盘布局并能够将磁盘块有效的管理起来。
-//! 但是对于文件系统的使用者而言，他们往往不关心磁盘布局是如何实现的，而是更希望能够直接看到目录树结构中逻辑上的文件和目录。
-//! 为此需要设计索引节点 Inode 暴露给文件系统的使用者，让他们能够直接对文件和目录进行操作。
+//! FileSystem 实现了磁盘布局并能够将磁盘块有效的管理起来.
+//! 但是对于文件系统的使用者而言, 他们往往不关心磁盘布局是如何实现的, 而是更希望能够直接看到目录树结构中逻辑上的文件和目录.
+//! 为此需要设计索引节点 [`Inode`] 暴露给文件系统的使用者, 让他们能够直接对文件和目录进行操作.
 //!
-//!  DiskInode 放在磁盘块中比较固定的位置，而 Inode 是放在内存中的记录文件索引节点信息的数据结构
+//!  DiskInode 放在磁盘块中比较固定的位置, 而 Inode 是放在内存中的记录文件索引节点信息的数据结构
 
 use std::sync::Arc;
 
@@ -11,8 +11,7 @@ use crate::fs::{DirEntry, DIRENT_SIZE};
 use ::log::error;
 
 use super::{
-    block_cache_sync_all, easy_fs::EasyFileSystem, get_block_cache, BlockDevice, DiskInode,
-    DiskInodeType,
+    block_cache_sync_all, fs::FileSystem, get_block_cache, BlockDevice, DiskInode, DiskInodeType,
 };
 
 use spin::{Mutex, MutexGuard};
@@ -22,7 +21,7 @@ pub struct Inode {
     block_id: usize,
     /// 盘块上的偏移
     block_offset: usize,
-    fs: Arc<Mutex<EasyFileSystem>>,
+    fs: Arc<Mutex<FileSystem>>,
     block_device: Arc<dyn BlockDevice>,
 }
 
@@ -30,7 +29,7 @@ impl Inode {
     pub fn new(
         block_id: u32,
         block_offset: usize,
-        fs: Arc<Mutex<EasyFileSystem>>,
+        fs: Arc<Mutex<FileSystem>>,
         block_device: Arc<dyn BlockDevice>,
     ) -> Self {
         Self {
@@ -41,8 +40,8 @@ impl Inode {
         }
     }
 
-    // 仿照 BlockCache::read/modify ，
-    // 我们可以设计两个方法来简化对于 Inode 对应的磁盘上的 DiskInode 的访问流程，
+    // 仿照 BlockCache::read/modify ,
+    // 我们可以设计两个方法来简化对于 Inode 对应的磁盘上的 DiskInode 的访问流程,
     // 而不是每次都需要 get_block_cache.lock.read/modify
 
     /// 在磁盘 inode 上调用一个函数来读取它
@@ -60,11 +59,11 @@ impl Inode {
     }
 
     // 文件索引
-    // USED：
-    // 在目录树上仅有一个目录——那就是作为根节点的根目录。所有的文件都在根目录下面。
-    // 于是，我们不必实现目录索引。
-    // 文件索引的查找比较简单，仅需在根目录的目录项中根据文件名找到文件的 inode 编号即可。
-    // 由于没有子目录的存在，这个过程只会进行一次
+    // USED:
+    // 在目录树上仅有一个目录--那就是作为根节点的根目录. 所有的文件都在根目录下面.
+    // 于是, 我们不必实现目录索引.
+    // 文件索引的查找比较简单, 仅需在根目录的目录项中根据文件名找到文件的 inode 编号即可.
+    // 由于没有子目录的存在, 这个过程只会进行一次
 
     // FEAT: 现在支持目录了
 
@@ -75,7 +74,7 @@ impl Inode {
         let mut dir_entry = DirEntry::create_empty();
         for i in 0..file_count {
             assert_eq!(
-                disk_inode.read(
+                disk_inode.read_at(
                     DIRENT_SIZE * i,
                     dir_entry.as_bytes_mut(),
                     &self.block_device,
@@ -84,7 +83,7 @@ impl Inode {
             ); // 读取目录项
 
             // 将目录内容中的所有目录项都读到内存进行逐个比对
-            // 如果能够找到，则 find 方法会根据查到 inode 编号，对应生成一个 Inode 用于后续对文件的访问
+            // 如果能够找到, 则 find 方法会根据查到 inode 编号, 对应生成一个 Inode 用于后续对文件的访问
             if dir_entry.name() == name {
                 return Some(dir_entry.inode_id() as u32);
             }
@@ -124,14 +123,14 @@ impl Inode {
         (self.block_id, self.block_offset)
     }
 
-    // 包括 find 在内，所有暴露给文件系统的使用者的文件系统操作（还包括接下来将要介绍的几种），
+    // 包括 find 在内, 所有暴露给文件系统的使用者的文件系统操作(还包括接下来将要介绍的几种),
     // 全程均需持有 EasyFileSystem 的互斥锁
-    // （相对而言，文件系统内部的操作，如之前的 Inode::new 或是上面的 find_inode_id ，
-    // 都是假定在已持有 efs 锁的情况下才被调用的，因此它们不应尝试获取锁）。
-    // 这能够保证在多核情况下，同时最多只能有一个核在进行文件系统相关操作。
+    // (相对而言, 文件系统内部的操作, 如之前的 Inode::new 或是上面的 find_inode_id ,
+    // 都是假定在已持有 efs 锁的情况下才被调用的, 因此它们不应尝试获取锁).
+    // 这能够保证在多核情况下, 同时最多只能有一个核在进行文件系统相关操作.
 
     // 文件列举
-    // ls 方法可以收集目录下的所有文件的文件名并以向量的形式返回，
+    // ls 方法可以收集目录下的所有文件的文件名并以向量的形式返回,
     pub fn ls(&self) -> Vec<String> {
         let _fs = self.fs.lock();
         self.read_disk_inode(|disk_inode| {
@@ -140,7 +139,7 @@ impl Inode {
             for i in 0..file_count {
                 let mut dir_entry = DirEntry::create_empty();
                 assert_eq!(
-                    disk_inode.read(
+                    disk_inode.read_at(
                         DIRENT_SIZE * i,
                         dir_entry.as_bytes_mut(),
                         &self.block_device,
@@ -155,15 +154,16 @@ impl Inode {
 
     // 文件创建
     // create 方法可以在目录下创建一个文件
+    // 返回 文件的 Inode
     pub fn create(&self, name: &str, kind: DiskInodeType) -> Option<Arc<Inode>> {
         let mut fs = self.fs.lock();
         if self
-            .modify_disk_inode(|root_inode| {
-                assert!(root_inode.is_dir());
-                self.find_inode_id(name, root_inode)
+            .modify_disk_inode(|disk_inode| {
+                assert!(disk_inode.is_dir());
+                self.find_inode_id(name, disk_inode)
             })
             .is_some()
-        // 如果已经存在，则返回 None
+        // 如果已经存在, 则返回 None
         {
             println!("file {} already exists", name);
             return None;
@@ -183,31 +183,31 @@ impl Inode {
                 }
             });
 
-        // 将待创建文件的目录项插入到目录的内容中，使得之后可以索引到
-        self.modify_disk_inode(|root_inode| {
+        // 将待创建文件的目录项插入到目录的内容中, 使得之后可以索引到
+        self.modify_disk_inode(|disk_inode| {
             // 在目录中添加一个目录项
-            let file_count = (root_inode.size as usize) / DIRENT_SIZE;
+            let file_count = (disk_inode.size as usize) / DIRENT_SIZE;
             let new_size = (file_count + 1) * DIRENT_SIZE;
             // 增加目录的大小
-            self.increase_size(new_size as u32, root_inode, &mut fs);
+            self.increase_size(new_size as u32, disk_inode, &mut fs);
             // 在目录的最后添加一个目录项
             let dir_entry = DirEntry::new(name, new_inode_id as u32);
-            root_inode.write(
-                // 在此处开始写一个目录项， 大小为 DIRENT_SIZE， 最后root_inode的大小为 new_size
+            disk_inode.write_at(
+                // 在此处开始写一个目录项,  大小为 DIRENT_SIZE,  最后root_inode的大小为 new_size
                 file_count * DIRENT_SIZE,
                 dir_entry.as_bytes(),
                 &self.block_device,
             );
         });
 
-        // Q: 这与上面的 new_inode_block_id, new_inode_block_offset 有什么区别？
-        let (block_id, block_offset) = fs.get_disk_inode_pos(new_inode_id);
+        // Q: 这与上面的 new_inode_block_id, new_inode_block_offset 有什么区别?
+        // let (block_id, block_offset) = fs.get_disk_inode_pos(new_inode_id);
 
         block_cache_sync_all();
 
         Some(Arc::new(Self::new(
-            block_id,
-            block_offset,
+            new_inode_block_id,
+            new_inode_block_offset,
             self.fs.clone(),
             self.block_device.clone(),
         )))
@@ -217,9 +217,12 @@ impl Inode {
         &self,
         new_size: u32,
         disk_inode: &mut DiskInode,
-        fs: &mut MutexGuard<EasyFileSystem>,
+        fs: &mut MutexGuard<FileSystem>,
     ) {
         if new_size < disk_inode.alloc_size {
+            // fix: bug
+            // 某种操作后(可能为 删除文件夹下一个有数据的文件)无法创建文件
+            disk_inode.size = new_size;
             return;
         }
 
@@ -232,8 +235,8 @@ impl Inode {
     }
 
     // 文件删除
-    // 在以某些标志位打开文件（例如带有 CREATE 标志打开一个已经存在的文件）的时候，需要首先将文件清空。
-    // 在索引到文件的 Inode 之后，可以调用 clear 方法
+    // 在以某些标志位打开文件(例如带有 CREATE 标志打开一个已经存在的文件)的时候, 需要首先将文件清空.
+    // 在索引到文件的 Inode 之后, 可以调用 clear 方法
     // 将该文件占据的索引块和数据块回收
     pub fn clear(&self) {
         let mut fs = self.fs.lock();
@@ -252,12 +255,14 @@ impl Inode {
     }
 
     /// 删除目录项
-    /// 这个方法感觉不是很好 时间复杂度O(n) 空间复杂度O(n)
+    //
+    // 类似删除顺序表的某个元素
+    // 这个方法感觉不是很好 时间复杂度O(n) 空间复杂度O(n)
     pub fn rm_dir_entry(&self, file_name: &str, parent_inode: Arc<Inode>) {
         let _fs = self.fs.lock();
 
         // 找到dir_entry_pos
-        let pos = parent_inode.dir_entry_pos(file_name); // 提前找到位置，防止拿不到锁
+        let pos = parent_inode.dir_entry_pos(file_name); // 提前找到位置, 防止拿不到锁
         if pos.is_none() {
             println!("rm_dir_entry: file not found");
             return;
@@ -267,16 +272,16 @@ impl Inode {
             let file_count = (disk_inode.size as usize) / DIRENT_SIZE;
             let new_size = (file_count - 1) * DIRENT_SIZE;
 
-            // 从pos开始，将后面的dir_entry往前移动
+            // 从pos开始, 将后面的dir_entry往前移动
             let mut dir_entry_list: Vec<DirEntry> = Vec::new();
 
-            // 为什么不合并： 读写冲突
-
-            for i in pos..file_count - 1 {
+            // 为什么不合并: 读写冲突
+            // fix:
+            for i in (pos + 1)..file_count {
                 let mut dir_entry = DirEntry::create_empty();
                 assert_eq!(
-                    disk_inode.read(
-                        (i + 1) * DIRENT_SIZE,
+                    disk_inode.read_at(
+                        i * DIRENT_SIZE,
                         dir_entry.as_bytes_mut(),
                         &self.block_device,
                     ),
@@ -285,23 +290,23 @@ impl Inode {
                 dir_entry_list.push(dir_entry);
             }
 
-            for i in pos..file_count - 1 {
+            for i in pos..(file_count - 1) {
                 let dir_entry = dir_entry_list.remove(0);
                 assert_eq!(
-                    disk_inode.write(i * DIRENT_SIZE, dir_entry.as_bytes(), &self.block_device),
+                    disk_inode.write_at(i * DIRENT_SIZE, dir_entry.as_bytes(), &self.block_device),
                     DIRENT_SIZE,
                 );
             }
 
             // 将最后一个dir_entry清空
             let dir_entry = DirEntry::create_empty();
-            disk_inode.write(
+            disk_inode.write_at(
                 (file_count - 1) * DIRENT_SIZE,
                 dir_entry.as_bytes(),
                 &self.block_device,
             );
 
-            // 修改size (ps: 可以去看看 layout::write 处提到的bug-fix)
+            // 修改size (ps: 可以去看看 layout::write 处提到的 bug-fix)
             disk_inode.size = new_size as u32;
         });
 
@@ -314,7 +319,7 @@ impl Inode {
             for i in 0..file_count {
                 let mut dir_entry = DirEntry::create_empty();
                 assert_eq!(
-                    disk_inode.read(
+                    disk_inode.read_at(
                         i * DIRENT_SIZE,
                         dir_entry.as_bytes_mut(),
                         &self.block_device
@@ -330,12 +335,12 @@ impl Inode {
     }
 
     // 文件读写
-    //从目录索引到一个文件之后，可以对它进行读写。
-    // 注意：和 DiskInode 一样，这里的读写作用在字节序列的一段区间上
+    //从目录索引到一个文件之后, 可以对它进行读写.
+    // 注意: 和 DiskInode 一样, 这里的读写作用在字节序列的一段区间上
 
     pub fn read(&self, offset: usize, buf: &mut [u8]) -> usize {
         let _fs = self.fs.lock();
-        self.read_disk_inode(|disk_inode| disk_inode.read(offset, buf, &self.block_device))
+        self.read_disk_inode(|disk_inode| disk_inode.read_at(offset, buf, &self.block_device))
     }
 
     pub fn chname(&self, old_name: &str, new_name: &str) {
@@ -349,14 +354,14 @@ impl Inode {
             // BUG(disk_inode.size): 之后的文件无法读取 -> write change size
 
             for i in 0..file_count {
-                curr_inode.read(
+                curr_inode.read_at(
                     i * DIRENT_SIZE,
                     dir_entry.as_bytes_mut(),
                     &self.block_device,
                 );
                 if dir_entry.name() == old_name {
                     dir_entry.chname(new_name);
-                    curr_inode.write(i * DIRENT_SIZE, dir_entry.as_bytes(), &self.block_device);
+                    curr_inode.write_at(i * DIRENT_SIZE, dir_entry.as_bytes(), &self.block_device);
                     break;
                 }
             }
@@ -385,10 +390,10 @@ impl Inode {
                 return 0;
             }
 
-            // 如果写入的数据超过了文件的大小，则需要增加文件的大小
+            // 如果写入的数据超过了文件的大小, 则需要增加文件的大小
             self.increase_size((offset + buf.len()) as u32, disk_inode, &mut fs);
             // 写入数据
-            let write_size = disk_inode.write(offset, buf, &self.block_device);
+            let write_size = disk_inode.write_at(offset, buf, &self.block_device);
 
             // 修改size (ps: 可以去看看 layout::write 处提到的bug-fix)
             disk_inode.size = (offset + write_size) as u32;
