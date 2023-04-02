@@ -4,15 +4,15 @@ use super::fs;
 use crate::fs::DirEntry;
 use crate::BLOCK_NUM;
 use device::BlockFile;
-use fs::{BlockDevice, EasyFileSystem, BLOCK_SIZE};
+use fs::{BlockDevice, FileSystem, BLOCK_SIZE};
 use std::fs::OpenOptions;
 use std::sync::{Arc, Mutex};
 
 #[test]
-fn efs_test() -> std::io::Result<()> {
+fn fs_test() -> std::io::Result<()> {
     // 创建虚拟磁盘
     let block_file = Arc::new(BlockFile(Mutex::new({
-        // 创建文件，设置权限
+        // 创建文件, 设置权限
         let f = OpenOptions::new()
             .read(true)
             .write(true)
@@ -24,13 +24,13 @@ fn efs_test() -> std::io::Result<()> {
     })));
 
     // 在虚拟块设备 block_file 上初始化 easy-fs 文件系统
-    EasyFileSystem::create(block_file.clone(), 4096, 1);
+    FileSystem::create(block_file.clone(), 4096, 1);
 
     // 打开文件系统
-    let efs = EasyFileSystem::open(block_file.clone());
+    let efs = FileSystem::open(block_file.clone());
 
     // 读取根目录
-    let root_inode = EasyFileSystem::root_inode(&efs);
+    let root_inode = FileSystem::root_inode(&efs);
 
     root_inode.create("filea", fs::DiskInodeType::File);
     root_inode.create("fileb", fs::DiskInodeType::File);

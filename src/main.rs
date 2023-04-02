@@ -6,9 +6,9 @@ use chrono::{
     format::{DelayedFormat, StrftimeItems},
     prelude::*,
 };
-use clap::{App, Arg};
+use clap::{Arg, Command};
 use device::BlockFile;
-use fs::{EasyFileSystem, BLOCK_SIZE};
+use fs::{FileSystem, BLOCK_SIZE};
 use lazy_static::*;
 use std::{
     fs::{read_dir, File, OpenOptions},
@@ -31,53 +31,60 @@ lazy_static! {
 }
 
 fn main() {
-    easy_fs_pack().expect("🦀 Error when packing easy fs");
+    fs_pack().expect("🦀 Error when packing easy fs");
 }
 
-fn easy_fs_pack() -> std::io::Result<()> {
+fn fs_pack() -> std::io::Result<()> {
     // 从命令行参数中获取文件名
-    let matche = App::new("EasyFileSystem Packer")
+    // source 参数
+
+    let matche = Command::new("easy-fs")
         .arg(
-            // source 参数
-            Arg::with_name("source")
-                .short("s")
+            Arg::new("source")
+                .short('s')
                 .long("source")
-                .takes_value(true)
+                .required(true)
                 .help("🦀 Executable source dir(with backslash '/')"),
         )
         .arg(
             // target 参数
-            Arg::with_name("target")
-                .short("t")
+            Arg::new("target")
+                .short('t')
                 .long("target")
-                .takes_value(true)
+                .required(true)
                 .help("🦀 Executable target dir(with backslash '/')"),
         )
         .arg(
             // target 参数
-            Arg::with_name("ways to run")
-                .short("w")
+            Arg::new("ways to run")
+                .short('w')
                 .long("ways")
-                .takes_value(true)
+                .required(true)
                 .help("Executable ways use \"create\" or \"open\""),
         )
         .get_matches();
 
-    let src_path = matche.value_of("source").unwrap();
-    let target_path = matche.value_of("target").unwrap();
+    let src_path = matche
+        .get_one("source")
+        .map(String::as_str)
+        .expect("🦀 source path is required");
+    let target_path = matche
+        .get_one("target")
+        .map(String::as_str)
+        .expect("🦀 target path is required");
 
     if !target_path.ends_with('/') && !src_path.ends_with('/') {
         // 如果target_path 最后一个字符不是"/"
         panic!("🦀 src_path / target_path must end with '/'");
     };
 
-    let ways = matche.value_of("ways to run").unwrap();
+    let ways = matche.get_one("ways to run").map(String::as_str).unwrap();
 
     // 创建虚拟块设备
-    // 打开虚拟块设备。这里我们在 Linux 上创建文件 ./target/fs.img 来新建一个虚拟块设备，并将它的容量设置为 0x4000 个块。
-    // 在创建的时候需要将它的访问权限设置为可读可写。
+    // 打开虚拟块设备.这里我们在 Linux 上创建文件 ./target/fs.img 来新建一个虚拟块设备, 并将它的容量设置为 0x4000 个块.
+    // 在创建的时候需要将它的访问权限设置为可读可写.
     let block_file = Arc::new(BlockFile(Mutex::new({
-        // 创建 / 打开文件，设置权限
+        // 创建 / 打开文件, 设置权限
         let f = OpenOptions::new()
             .read(true)
             .write(true)
@@ -90,18 +97,18 @@ fn easy_fs_pack() -> std::io::Result<()> {
 
     let efs = if ways == "create" {
         // 在虚拟块设备 block_file 上初始化 easy-fs 文件系统
-        let efs = EasyFileSystem::create(block_file.clone(), BLOCK_NUM as u32, 1);
+        let efs = FileSystem::create(block_file.clone(), BLOCK_NUM as u32, 1);
         efs
     } else if ways == "open" {
         // 在虚拟块设备 block_file 上打开 easy-fs 文件系统
-        let efs = EasyFileSystem::open(block_file.clone());
+        let efs = FileSystem::open(block_file.clone());
         efs
     } else {
         panic!("🦀 Please specify the operation(create or open)!");
     };
 
     // 读取目录
-    let root_inode = Arc::new(EasyFileSystem::root_inode(&efs));
+    let root_inode = Arc::new(FileSystem::root_inode(&efs));
     let mut folder_inode: Vec<Arc<Inode>> = Vec::new();
     let mut curr_folder_inode = Arc::clone(&root_inode);
 
@@ -130,7 +137,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 } else {
                     let arg = arg.unwrap_or("");
 
-                    // 如果 arg 以 "/" 结尾，将 target 设置为 target 的子串
+                    // 如果 arg 以 "/" 结尾, 将 target 设置为 target 的子串
                     let arg = if arg.ends_with('/') {
                         &arg[..arg.len() - 1]
                     } else {
@@ -217,8 +224,8 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 let file_inode = file_inode.unwrap();
                 let size = file_inode.size() as usize;
 
-                // 如果 input 只有一个参数，那么就是读取整个文件：offset = 0，size = 文件大小
-                // 如果 input 只有两个参数，那么就是读取文件的一部分：offset = 第一个参数，size = 文件大小 - offset
+                // 如果 input 只有一个参数, 那么就是读取整个文件: offset = 0, size = 文件大小
+                // 如果 input 只有两个参数, 那么就是读取文件的一部分: offset = 第一个参数, size = 文件大小 - offset
                 let next1 = input.next().unwrap_or("0");
                 let next2 = input.next();
                 if next2 == None {
@@ -289,9 +296,9 @@ fn easy_fs_pack() -> std::io::Result<()> {
 
             // write filename offset/"-a" content
             // 从 offset 开始写入 content, 只覆盖content的长度, 但我的展示方式是不让看后面的部分
-            // 如果想要看后面的部分，可以去修改展示时获取的 size 为 alloc_size
-            // 另外，目前写入的 content 没法换行，也就是读一串内容；
-            // 如果要修改：循环读取 input，直到读到一个特殊字符
+            // 如果想要看后面的部分, 可以去修改展示时获取的 size 为 alloc_size
+            // 另外, 目前写入的 content 没法换行, 也就是读一串内容;
+            // 如果要修改: 循环读取 input, 直到读到一个特殊字符
             "write" => {
                 let file_name = input.next();
                 if file_name.is_none() {
@@ -306,6 +313,8 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 }
                 let file_inode = file_inode.unwrap();
 
+                // 读一串内容 不换行
+                //
                 // let mut size = file_inode.size();
                 // 如果 next 不是数字
                 // let next = input.next().unwrap();
@@ -315,13 +324,13 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 //         let context = input.next().unwrap();
                 //         file_inode.write(size, context.as_bytes());
                 //     } else {
-                //         // 那么就是写入整个文件：offset = 0，content = 第一个参数
+                //         // 那么就是写入整个文件: offset = 0, content = 第一个参数
                 //         let content = next;
                 //         file_inode.write(0, content.as_bytes());
                 //     }
                 // } else {
                 //     // 如果 next 是数字
-                //     // 那么就是写入文件的一部分：offset = 第一个参数，content = 第二个参数
+                //     // 那么就是写入文件的一部分: offset = 第一个参数, content = 第二个参数
                 //     let offset = next.parse::<usize>().unwrap();
                 //     let content = input.next().unwrap_or("");
                 //     if offset > size {
@@ -332,10 +341,8 @@ fn easy_fs_pack() -> std::io::Result<()> {
                 // };
 
                 //
-                // 目前写入的 content 没法换行，也就是读一串内容；
-                // 如果要修改：循环读取 input，直到读到一个特殊字符
+                // 循环读取 input, 直到读到一个特殊字符
                 //
-
                 let mut offset;
                 let next = input.next();
 
@@ -525,6 +532,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
                             }
                             // 遍历所有文件夹
                             if folder.len() > 0 {
+                                file_inode.clear(); // fix: forget to clear the folder
                                 drop(file_inode);
                                 file_inode = folder.pop().unwrap();
                             } else {
@@ -540,6 +548,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
 
                         drop(file_inode);
                         file_inode = Arc::clone(&temp);
+                        // temp drop
                     }
 
                     file_inode.clear();
@@ -596,7 +605,7 @@ fn easy_fs_pack() -> std::io::Result<()> {
 }
 
 fn update_path(target: &str) {
-    // 如果 target 以 "/" 结尾，将 target 设置为 target 的子串
+    // 如果 target 以 "/" 结尾, 将 target 设置为 target 的子串
     let target = if target.ends_with('/') {
         &target[..target.len() - 1]
     } else {
@@ -637,3 +646,6 @@ fn update_path(target: &str) {
         }
     }
 }
+
+// bug
+// 1. 某种操作后(:可能为 删除文件夹下一个有数据的文件)无法创建文件
